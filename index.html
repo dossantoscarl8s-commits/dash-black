@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leads ao vivo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0a0b; --card:#141416; --card2:#1b1b1e; --line:#26262b;
+    --txt:#f4f4f5; --mut:#8b8b93; --acc:#22c55e; --acc2:#16a34a; --err:#f87171; --gold:#facc15;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1500px;margin:0 auto;padding:24px 16px 40px}
+  header{display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between;margin-bottom:22px}
+  h1{font-size:20px;font-weight:700;margin:0;letter-spacing:.2px}
+  .live{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--mut)}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 0 rgba(34,197,94,.7);animation:pulse 2s infinite}
+  .dot.off{background:var(--err);animation:none}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,.6)}70%{box-shadow:0 0 0 10px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
+  .hdr-r{display:flex;gap:10px;align-items:center}
+  button{background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font:500 13px Inter,sans-serif;cursor:pointer}
+  button:hover{border-color:#3a3a40}
+  .top{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:14px;margin-bottom:18px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px}
+  .kpi .l{font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.8px;font-weight:600}
+  .kpi .v{font-size:44px;font-weight:800;margin-top:6px;font-variant-numeric:tabular-nums;line-height:1.05}
+  .kpi.main .v{font-size:64px;color:var(--acc)}
+  .kpi .s{font-size:13px;color:var(--mut);margin-top:6px}
+  .main-grid{display:grid;grid-template-columns:1fr 320px;gap:14px;align-items:start}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+  .card{position:relative;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;transition:border-color .4s, background .4s;overflow:hidden}
+  .card .rank{position:absolute;top:12px;right:14px;font-size:12px;color:var(--mut);font-weight:600}
+  .card .nm{font-size:13px;font-weight:600;color:#d4d4d8;letter-spacing:.3px;padding-right:28px}
+  .card .n{font-size:40px;font-weight:800;margin:6px 0 2px;font-variant-numeric:tabular-nums}
+  .card .meta{font-size:12px;color:var(--mut);display:flex;justify-content:space-between;gap:8px}
+  .card .bar{height:4px;background:var(--card2);border-radius:4px;margin-top:10px;overflow:hidden}
+  .card .bar i{display:block;height:100%;background:var(--acc2);border-radius:4px;transition:width .6s}
+  .card.flash{border-color:var(--acc);background:#10251a}
+  .card.err .n{color:var(--err);font-size:16px;font-weight:600;margin:14px 0 8px}
+  .card.lead1 .rank{color:var(--gold)}
+  .plus{position:absolute;right:14px;top:38px;font-weight:800;color:var(--acc);font-size:20px;animation:rise 2.4s ease-out forwards}
+  @keyframes rise{0%{opacity:0;transform:translateY(8px)}15%{opacity:1;transform:none}80%{opacity:1}100%{opacity:0;transform:translateY(-14px)}}
+  .feed{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;max-height:calc(100vh - 260px);overflow:auto}
+  .feed h2{font-size:13px;color:var(--mut);text-transform:uppercase;letter-spacing:.8px;margin:0 0 10px;font-weight:600}
+  .ev{display:flex;justify-content:space-between;gap:8px;padding:9px 0;border-top:1px solid var(--line);font-size:14px}
+  .ev:first-of-type{border-top:0}
+  .ev b{color:var(--acc)} .ev time{color:var(--mut);font-size:12px;white-space:nowrap}
+  .empty{color:var(--mut);font-size:13px;padding:6px 0}
+  .banner{display:none;background:#2a1215;border:1px solid #5b1d22;color:#fecaca;padding:10px 14px;border-radius:10px;margin-bottom:14px;font-size:14px}
+  .demo{background:#2a2410;border-color:#5b4d1d;color:#fde68a}
+  @media (max-width:1000px){.main-grid{grid-template-columns:1fr}.feed{max-height:none}}
+  @media (max-width:640px){.top{grid-template-columns:1fr}.kpi.main .v{font-size:52px}.grid{grid-template-columns:repeat(2,1fr)}.card .n{font-size:32px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Leads de hoje · Meta Ads</h1>
+      <div class="live"><span class="dot" id="dot"></span><span id="status">Conectando…</span></div>
+    </div>
+    <div class="hdr-r">
+      <button id="som" title="Tocar um som quando chegar lead">🔕 Som desligado</button>
+    </div>
+  </header>
+
+  <div class="banner" id="banner"></div>
+
+  <section class="top">
+    <div class="kpi main"><div class="l">Total de leads hoje</div><div class="v" id="total">–</div><div class="s" id="totalS">&nbsp;</div></div>
+    <div class="kpi"><div class="l">Investimento hoje</div><div class="v" id="gasto">–</div><div class="s" id="unid">&nbsp;</div></div>
+    <div class="kpi"><div class="l">Custo por lead</div><div class="v" id="cpl">–</div><div class="s">média de todas as unidades</div></div>
+  </section>
+
+  <div class="main-grid">
+    <div class="grid" id="grid"></div>
+    <aside class="feed"><h2>Chegadas recentes</h2><div id="feed"><div class="empty">Aguardando novos leads…</div></div></aside>
+  </div>
+</div>
+
+<script>
+const INTERVALO = 10000;
+const DEMO = new URLSearchParams(location.search).has('demo');
+const brl = v => v == null ? '–' : v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:v>=1000?0:2});
+const hora = d => d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+const $ = id => document.getElementById(id);
+
+let anterior = null;       // {unidade: leads}
+let diaAnterior = new Date().toDateString();
+let eventos = [];
+let somLigado = false;
+let ultimoOk = null;
+
+$('som').onclick = () => { somLigado = !somLigado; $('som').textContent = somLigado ? '🔔 Som ligado' : '🔕 Som desligado'; if (somLigado) beep(); };
+function beep(){ try{ const c=new (window.AudioContext||window.webkitAudioContext)(); const o=c.createOscillator(), g=c.createGain(); o.connect(g); g.connect(c.destination); o.frequency.value=880; g.gain.setValueAtTime(.15,c.currentTime); g.gain.exponentialRampToValueAtTime(.001,c.currentTime+.35); o.start(); o.stop(c.currentTime+.35);}catch(_){} }
+
+// ---- modo demonstração (?demo) ----
+const demoBase = ['F. SANTANA','FORTALEZA','MOSSORO','TERESINA','SALVADOR','CAMPINA GRANDE','CARUARU','JOAO PESSOA','NATAL','RECIFE','RIBEIRAO PRETO','BRASILIA','PRAIA GRANDE','CAMPINAS','DOURADOS','MACEIO','PATOS']
+  .map(u => ({unidade:u, leads:Math.floor(Math.random()*40), gasto:Math.random()*600+80, erro:null}));
+async function buscarDemo(){
+  demoBase.forEach(u => { if (Math.random() < .25) { u.leads += 1 + (Math.random()<.2); u.gasto += Math.random()*15; } });
+  return {atualizadoEm:new Date().toISOString(), unidades: demoBase.map(u=>({...u}))};
+}
+
+async function buscar(){
+  if (DEMO) return buscarDemo();
+  const r = await fetch('/api/leads', {cache:'no-store'});
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status);
+  return j;
+}
+
+function render(d){
+  const us = d.unidades;
+  const ok = us.filter(u => u.leads != null);
+  const total = ok.reduce((s,u)=>s+u.leads,0);
+  const gasto = ok.reduce((s,u)=>s+(u.gasto||0),0);
+  const max = Math.max(1, ...ok.map(u=>u.leads));
+
+  // virada do dia: zera o histórico
+  const hoje = new Date().toDateString();
+  if (hoje !== diaAnterior) { anterior = null; eventos = []; diaAnterior = hoje; }
+
+  const novos = {};
+  if (anterior) for (const u of ok) {
+    const diff = u.leads - (anterior[u.unidade] ?? u.leads);
+    if (diff > 0) { novos[u.unidade] = diff; eventos.unshift({unidade:u.unidade, n:diff, t:new Date()}); }
+  }
+  eventos = eventos.slice(0, 60);
+  if (Object.keys(novos).length && somLigado) beep();
+
+  const prevTotal = anterior ? Object.values(anterior).reduce((a,b)=>a+b,0) : null;
+  $('total').textContent = total.toLocaleString('pt-BR');
+  if (prevTotal != null && total > prevTotal) $('totalS').textContent = `+${total-prevTotal} na última atualização`;
+  $('gasto').textContent = brl(gasto);
+  $('cpl').textContent = total ? brl(gasto/total) : '–';
+  $('unid').textContent = `${ok.length} de ${us.length} unidades respondendo`;
+
+  const ordenadas = [...us].sort((a,b)=>(b.leads??-1)-(a.leads??-1));
+  $('grid').innerHTML = ordenadas.map((u,i) => {
+    if (u.leads == null) return `<div class="card err"><div class="nm">${u.unidade}</div><div class="n">Erro</div><div class="meta"><span title="${(u.erro||'').replace(/"/g,'&quot;')}">${(u.erro||'').slice(0,60)}</span></div></div>`;
+    const cpl = u.leads ? brl(u.gasto/u.leads) : '–';
+    return `<div class="card ${novos[u.unidade]?'flash':''} ${i===0?'lead1':''}" data-u="${u.unidade}">
+      <div class="rank">${i===0?'★ ':''}#${i+1}</div>
+      <div class="nm">${u.unidade}</div>
+      <div class="n">${u.leads}</div>
+      <div class="meta"><span>${brl(u.gasto)}</span><span>CPL ${cpl}</span></div>
+      <div class="bar"><i style="width:${(u.leads/max*100).toFixed(1)}%"></i></div>
+      ${novos[u.unidade]?`<span class="plus">+${novos[u.unidade]}</span>`:''}
+    </div>`;
+  }).join('');
+  setTimeout(()=>document.querySelectorAll('.card.flash').forEach(c=>c.classList.remove('flash')), 2500);
+
+  $('feed').innerHTML = eventos.length
+    ? eventos.map(e=>`<div class="ev"><span><b>+${e.n}</b> ${e.n>1?'leads':'lead'} · ${e.unidade}</span><time>${hora(e.t)}</time></div>`).join('')
+    : '<div class="empty">Aguardando novos leads…</div>';
+
+  anterior = Object.fromEntries(ok.map(u=>[u.unidade,u.leads]));
+}
+
+async function ciclo(){
+  try {
+    const d = await buscar();
+    render(d);
+    ultimoOk = new Date();
+    $('dot').classList.remove('off');
+    $('status').textContent = `Ao vivo · atualizado às ${hora(ultimoOk)}`;
+    $('banner').style.display = DEMO ? 'block' : 'none';
+  } catch (e) {
+    $('dot').classList.add('off');
+    $('status').textContent = ultimoOk ? `Sem conexão · último dado às ${hora(ultimoOk)}` : 'Sem conexão';
+    $('banner').className = 'banner'; $('banner').style.display='block';
+    $('banner').textContent = 'Erro ao buscar dados: ' + e.message;
+  } finally {
+    setTimeout(ciclo, INTERVALO);
+  }
+}
+if (DEMO) { $('banner').className='banner demo'; $('banner').textContent='Modo demonstração: números fictícios.'; }
+ciclo();
+</script>
+</body>
+</html>
