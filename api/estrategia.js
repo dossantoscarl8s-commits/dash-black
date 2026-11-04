@@ -46,13 +46,10 @@ function noPeriodo(conjunto, agora) {
   return !(inicio > agora) && !(fim < agora);
 }
 
-// Soma o orçamento diário do que está no período e o gasto dessas campanhas hoje, só nas campanhas
-// rastreadas. O orçamento pode estar na campanha ou nos conjuntos; a Meta devolve em centavos.
-function resumirOrcamento(todasCampanhas, todosConjuntos, agora = Date.now()) {
+// Soma o orçamento diário do que está no período e o gasto dessas campanhas hoje. O orçamento pode
+// estar na campanha ou nos conjuntos; a Meta devolve em centavos.
+function resumirOrcamento(campanhas, conjuntos, agora = Date.now()) {
   let orcamento = 0, consumido = 0, semDiario = 0;
-  const campanhas = todasCampanhas.filter(rastreada);
-  const ids = new Set(campanhas.map(c => c.id));
-  const conjuntos = todosConjuntos.filter(s => ids.has(s.campaign_id));
   const vigentes = conjuntos.filter(s => noPeriodo(s, agora));
   for (const c of campanhas) {
     const daCampanha = vigentes.filter(s => s.campaign_id === c.id);

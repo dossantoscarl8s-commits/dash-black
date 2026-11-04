@@ -400,7 +400,7 @@ const medidor = v => v == null ? '' : `<div class="medidor"><i style="width:${Ma
 
 const mostrarUnidades = tabelaOrdenavel('uniCab', 'uniLinhas', [
   {k:'unidade', t:'Unidade', txt:true},
-  {k:'orcamento', t:'Orçamento diário', dica:'Campanhas ativas [MENSAGENS] com conjuntos no período de veiculação hoje'},
+  {k:'orcamento', t:'Orçamento diário', dica:'Campanhas ativas da unidade com conjuntos no período de veiculação hoje'},
   {k:'consumido', t:'Consumido', dica:'Gasto de hoje nessas mesmas campanhas'},
   {k:'pct', t:'% consumido', dica:'A marca branca mostra quanto do dia já passou'},
   {k:'alcanceHoje', t:'Alcance hoje', dica:'Todas as campanhas da unidade'},
@@ -452,7 +452,7 @@ function renderEstrategia(d){
   const somar = campo => d.unidades.reduce((s,u)=>s+(u[campo]||0),0);
   const orcamento = somar('orcamento'), consumido = somar('consumido'), semDiario = somar('semDiario'), fora = somar('foraDoPeriodo');
   const partes = [
-    `Orçamento do dia ${TAG_CAMPANHA} ${brl(orcamento)}`,
+    `Orçamento do dia ${brl(orcamento)}`,
     `consumido ${brl(consumido)} (${pct(razao(consumido, orcamento))})`,
     `${pct(fracaoDia)} do dia já passou`,
   ];
