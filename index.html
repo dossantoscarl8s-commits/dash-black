@@ -30,7 +30,7 @@
   .tabs{display:flex;gap:2px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:2px}
   .tabs button{background:none;border-color:transparent;border-radius:6px;color:var(--mut)}
   .tabs button.on{background:var(--card2);color:var(--txt)}
-  .top{display:grid;grid-template-columns:1.2fr repeat(4,1fr);gap:8px;margin-bottom:10px}
+  .top{display:grid;grid-template-columns:1.2fr repeat(4,1fr);gap:8px;padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid #3a3a40}
   .kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 13px;min-width:0}
   .kpi .l{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.6px;font-weight:600}
   .kpi .v{font-size:24px;font-weight:800;margin-top:2px;font-variant-numeric:tabular-nums;line-height:1.15}
@@ -66,18 +66,22 @@
   .ord:hover{color:var(--txt)}
   th[aria-sort] .ord{color:var(--acc)}
   .tabela{background:var(--card);border:1px solid var(--line);border-radius:9px;overflow:auto;max-height:min(calc(100vh - 110px),620px)}
+  #aba-campanhas .tabela{max-height:none;overflow:visible}
+  #campCab th:first-child{border-top-left-radius:8px}
+  #campCab th:last-child{border-top-right-radius:8px}
   table{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
   thead{position:sticky;top:0;z-index:1}
   th{background:var(--card2);color:var(--mut);font-size:11px;font-weight:600;text-align:right;padding:7px 10px;white-space:nowrap}
   td{padding:6px 10px;border-top:1px solid var(--line);text-align:right;white-space:nowrap}
   th.esq,td.esq{text-align:left}
-  td.nome{white-space:normal;min-width:220px}
+  td.nome{white-space:normal;min-width:160px}
   td.forte{font-weight:700}
   .tag{display:inline-block;min-width:62px;text-align:center;font-size:10px;font-weight:700;letter-spacing:.4px;padding:1px 6px;border-radius:5px;background:var(--card2);color:var(--mut)}
   .tag.lead{color:var(--acc)} .tag.erro{color:var(--err)} .tag.manual,.tag.info{color:var(--txt)}
   td.msg{text-align:left;white-space:normal;min-width:260px;width:100%}
   @media (max-width:1000px){.top{grid-template-columns:repeat(2,1fr)}.kpi.main{grid-column:1/-1}.main-grid{grid-template-columns:1fr}.feed{max-height:none}}
-  @media (max-width:760px){.wrap{width:auto;padding:12px 16px 20px}}
+  @media (max-width:1000px){.wrap{width:auto;padding:12px 16px 20px}}
+  @media (max-width:800px){#aba-campanhas .tabela{overflow-x:auto}}
   @media (max-width:640px){.grid{grid-template-columns:repeat(2,1fr)}header{align-items:flex-start}}
 </style>
 </head>
@@ -85,7 +89,7 @@
 <div class="wrap">
   <header>
     <div class="tit">
-      <h1>Leads de hoje · Meta Ads</h1>
+      <h1>Leads Tempo Real - Black BE</h1>
       <div class="live"><span class="dot" id="dot"></span><span id="status">Conectando…</span></div>
     </div>
     <div class="hdr-r">
@@ -313,8 +317,7 @@ const COLUNAS = [
   {k:'unidade', t:'Unidade', txt:true},
   {k:'conversas', t:'Conversas'},
   {k:'mpc', t:'Msgs/conversa', dica:'Estimativa mínima'},
-  {k:'m2', t:'2+ msgs'},
-  {k:'m3', t:'3+ msgs'},
+  {k:'m5', t:'5+ msgs'},
   {k:'leads', t:'Leads'},
   {k:'gasto', t:'Investimento'},
   {k:'cpl', t:'CPL'},
@@ -339,12 +342,12 @@ function renderCampanhas(){
     if (ativa) th.setAttribute('aria-sort', ordem.dir > 0 ? 'ascending' : 'descending'); else th.removeAttribute('aria-sort');
     th.querySelector('.seta').textContent = ativa ? (ordem.dir > 0 ? ' ▲' : ' ▼') : '';
   });
-  $('campInfo').textContent = `${linhas.length} campanhas ${TAG_CAMPANHA} ativas · msgs/conversa é uma estimativa mínima`;
+  $('campInfo').textContent = linhas.length === 1 ? '1 campanha ativa' : `${linhas.length} campanhas ativas`;
   $('campLinhas').innerHTML = linhas.length
     ? linhas.map(c => `<tr>
         <td class="esq nome">${esc(c.nome)}</td><td class="esq">${esc(c.unidade)}</td>
         <td class="forte">${c.conversas}</td><td>${media(c.msgs, c.conversas)}</td>
-        <td>${c.m2}</td><td>${c.m3}</td>
+        <td>${c.m5}</td>
         <td>${c.leads}</td><td>${brl(c.gasto)}</td><td>${brl(c.cpl)}</td>
       </tr>`).join('')
     : `<tr><td class="esq" colspan="${COLUNAS.length}"><div class="empty">Nenhuma campanha encontrada.</div></td></tr>`;
