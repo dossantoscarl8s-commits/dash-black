@@ -312,7 +312,7 @@ function render(d){
   $('grid').innerHTML = ordenadas.map((u,i) => {
     if (u.leads == null) return `<div class="card err"><div class="nm">${esc(u.unidade)}</div><div class="n">Erro</div><div class="meta"><span title="${esc(u.erro)}">${esc((u.erro||'').slice(0,40))}</span></div></div>`;
     const cpl = u.leads ? brl(u.gasto/u.leads) : '–';
-    const nCamp = (u.campanhas||[]).filter(c => c.ativa !== false).length;
+    const nCamp = (u.campanhas||[]).filter(campanhaExibida).length;
     return `<div class="card ${novos[u.unidade]?'flash':''} ${i===0?'lead1':''}" data-u="${esc(u.unidade)}">
       <div class="rank">${i===0?'★ ':''}#${i+1}</div>
       <div class="nm">${esc(u.unidade)}</div>
@@ -365,6 +365,7 @@ function tabelaOrdenavel(idCab, idCorpo, colunas, inicial, vazio, celulas){
 
 // ---- aba Campanhas: só campanhas ativas com a tag abaixo ----
 const TAG_CAMPANHA = '[MENSAGENS]';
+const campanhaExibida = c => c.ativa !== false && c.nome.toUpperCase().includes(TAG_CAMPANHA);
 const mostrarCampanhas = tabelaOrdenavel('campCab', 'campLinhas', [
   {k:'nome', t:'Campanha', txt:true},
   {k:'unidade', t:'Unidade', txt:true},
@@ -379,7 +380,7 @@ const mostrarCampanhas = tabelaOrdenavel('campCab', 'campLinhas', [
 
 function renderCampanhas(){
   const linhas = campanhas
-    .filter(c => c.ativa !== false && c.nome.toUpperCase().includes(TAG_CAMPANHA))
+    .filter(campanhaExibida)
     .map(c => ({...c, cpl: razao(c.gasto, c.leads)}));
   $('campInfo').textContent = linhas.length === 1 ? '1 campanha ativa' : `${linhas.length} campanhas ativas`;
   mostrarCampanhas(linhas);
