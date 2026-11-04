@@ -439,9 +439,9 @@ function demoEstrategia(){
   return {unidades, anuncios};
 }
 
-async function buscarEstrategia(manual){
+async function buscarEstrategia(){
   if (DEMO) return demoEstrategia();
-  const r = await fetch('/api/estrategia' + (manual ? '?t=' + Date.now() : ''), {cache:'no-store'});
+  const r = await fetch('/api/estrategia', {cache:'no-store'});
   const j = await r.json();
   if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status);
   return j;
@@ -458,7 +458,11 @@ function renderEstrategia(d){
   ];
   if (semDiario) partes.push(`${semDiario} ${semDiario===1?'campanha':'campanhas'} sem orçamento diário fora da conta`);
   if (fora) partes.push(`${fora} ${fora===1?'conjunto':'conjuntos'} fora do período não ${fora===1?'conta':'contam'}`);
-  $('estInfo').textContent = partes.join(' · ');
+  const semOrcamento = d.unidades.filter(u => u.orcamento == null);
+  if (semOrcamento.length) partes.push(`${semOrcamento.length} de ${d.unidades.length} unidades sem dados de orçamento agora`);
+  $('estInfo').textContent = semOrcamento.length === d.unidades.length
+    ? `Orçamento indisponível agora: ${semOrcamento[0].erro || 'sem resposta da Meta'}`
+    : partes.join(' · ');
   mostrarUnidades(d.unidades.map(u => ({...u, pct:razao(u.consumido, u.orcamento)})));
   mostrarAnuncios(d.anuncios.map(a => ({...a, custo:razao(a.gasto, a.conversas)})));
   for (const u of d.unidades) {
@@ -467,12 +471,12 @@ function renderEstrategia(d){
   }
 }
 
-async function carregarEstrategia(manual){
+async function carregarEstrategia(){
   if (abaAtual !== 'estrategia' || buscandoEst) return;
   buscandoEst = true;
   if (!estCarregada) $('estInfo').textContent = 'Carregando…';
   try {
-    renderEstrategia(await buscarEstrategia(manual));
+    renderEstrategia(await buscarEstrategia());
     estCarregada = true;
   } catch (e) {
     registrar('erro', 'Falha na aba Estratégia: ' + e.message);
@@ -510,7 +514,7 @@ async function ciclo(manual){
     timer = setTimeout(ciclo, INTERVALO);
   }
 }
-$('atualizar').onclick = () => { ciclo(true); carregarEstrategia(true); };
+$('atualizar').onclick = () => { ciclo(true); carregarEstrategia(); };
 if (DEMO) { $('banner').className='banner demo'; $('banner').textContent='Modo demonstração: números fictícios.'; }
 ciclo();
 carregarEstrategia();

@@ -2,7 +2,7 @@
 
 - `index.html`: o painel, com as abas Painel, Campanhas, Estratégia e Logs (atualiza a cada 10 s ou pelo botão Atualizar). Abra com `?demo` para ver com números fictícios.
 - `api/leads.js`: rota serverless que consulta as 17 contas por campanha numa única chamada batch da Graph API.
-- `api/estrategia.js`: rota da aba Estratégia (orçamento, alcance, frequência e anúncios). Só roda com a aba aberta, a cada 2 min.
+- `api/estrategia.js`: rota da aba Estratégia (orçamento, alcance, frequência e anúncios). Só roda com a aba aberta e os dados ficam até 5 min em cache.
 - `lib/contas.js`: lista de unidades e contas.
 
 ## Publicar no Vercel

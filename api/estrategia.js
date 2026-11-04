@@ -11,16 +11,23 @@ const TIPO_MSG_3 = 'onsite_conversion.messaging_user_depth_3_message_send';
 const LIMITE_BATCH = 50;
 const ATIVAS = encodeURIComponent('["ACTIVE"]');
 
+// Orçamento e período mudam pouco e a consulta de conjuntos é a que mais esbarra no limite da
+// Meta. Vale por 10 min; se falhar, usa o último resultado conhecido da conta.
+const VALIDADE_CONJUNTOS = 10 * 60 * 1000;
+let conjuntosGuardados = null;   // {em, porConta: Map(adAccountId → {data} ou {erro})}
+
 const campos = texto => encodeURIComponent(texto);
 
-// Cinco consultas por conta, sempre nesta ordem.
+// Quatro consultas por conta, sempre nesta ordem.
+const POR_CONTA = 4;
 const consultasDaConta = id => [
   `${id}/insights?level=account&date_preset=today&fields=${campos('reach,frequency')}`,
   `${id}/insights?level=account&date_preset=last_7d&fields=${campos('reach,frequency')}`,
   `${id}/campaigns?effective_status=${ATIVAS}&limit=500&fields=${campos('id,name,daily_budget,insights.date_preset(today){spend}')}`,
-  `${id}/adsets?effective_status=${ATIVAS}&limit=500&fields=${campos('campaign_id,daily_budget,start_time,end_time')}`,
   `${id}/ads?effective_status=${ATIVAS}&limit=300&fields=${campos('id,name,campaign_id,insights.date_preset(today){spend,impressions,ctr,actions}')}`,
 ];
+const consultaConjuntos = id =>
+  `${id}/adsets?effective_status=${ATIVAS}&limit=500&fields=${campos('campaign_id,daily_budget,start_time,end_time')}`;
 
 function valorAcao(actions, tipo) {
   if (!Array.isArray(actions)) return 0;
@@ -110,15 +117,31 @@ module.exports = async (req, res) => {
   }
 
   const contas = CONTAS.filter(c => c.enabled);
-  const POR_CONTA = 5;
+  const agora = Date.now();
+  const conjuntosValidos = conjuntosGuardados && agora - conjuntosGuardados.em < VALIDADE_CONJUNTOS;
 
   try {
-    const itens = await consultarMeta(contas.flatMap(c => consultasDaConta(c.adAccountId)), token);
+    const itens = await consultarMeta([
+      ...contas.flatMap(c => consultasDaConta(c.adAccountId)),
+      ...(conjuntosValidos ? [] : contas.map(c => consultaConjuntos(c.adAccountId))),
+    ], token);
     const anuncios = [];
 
+    if (!conjuntosValidos) {
+      const anterior = conjuntosGuardados?.porConta;
+      conjuntosGuardados = {
+        em: agora,
+        porConta: new Map(contas.map((c, i) => {
+          const novo = lerItem(itens[contas.length * POR_CONTA + i]);
+          return [c.adAccountId, novo.data ? novo : (anterior?.get(c.adAccountId)?.data ? anterior.get(c.adAccountId) : novo)];
+        })),
+      };
+    }
+
     const unidades = contas.map((c, i) => {
-      const [hoje, semana, campanhas, conjuntos, ads] =
+      const [hoje, semana, campanhas, ads] =
         itens.slice(i * POR_CONTA, (i + 1) * POR_CONTA).map(lerItem);
+      const conjuntos = conjuntosGuardados.porConta.get(c.adAccountId);
       const erro = [hoje, semana, campanhas, conjuntos, ads].find(x => x.erro)?.erro || null;
 
       if (campanhas.data && ads.data) {
@@ -147,7 +170,9 @@ module.exports = async (req, res) => {
       };
     });
 
-    res.setHeader('Cache-Control', 's-maxage=120, stale-while-revalidate=60');
+    // Resposta com erro fica pouco tempo em cache para não prender a falha por 5 min.
+    const cache = unidades.some(u => u.erro) ? 30 : 300;
+    res.setHeader('Cache-Control', `s-maxage=${cache}, stale-while-revalidate=60`);
     res.status(200).json({ atualizadoEm: new Date().toISOString(), unidades, anuncios });
   } catch (e) {
     res.status(502).json({ erro: 'Falha ao consultar a Meta: ' + e.message });

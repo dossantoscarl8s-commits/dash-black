@@ -6,6 +6,11 @@ const CONTAS = require('../lib/contas');
 
 const GRAPH_VERSION = process.env.META_API_VERSION || 'v24.0';
 
+// O status das campanhas muda pouco. Consultar a cada 5 min, e não a cada atualização, poupa o
+// limite de chamadas da Meta. Se a consulta falhar, vale o último status conhecido da conta.
+const VALIDADE_STATUS = 5 * 60 * 1000;
+let statusGuardado = null;   // {em, porConta: Map(adAccountId → {ativas} ou {erro})}
+
 // Tipos de ação contados como lead, em ordem de prioridade (o primeiro encontrado vence,
 // para não contar o mesmo lead duas vezes). Pode ser sobrescrito por LEAD_ACTION_TYPES.
 const LEAD_TYPES = (process.env.LEAD_ACTION_TYPES ||
@@ -52,18 +57,21 @@ module.exports = async (req, res) => {
   }
 
   const contas = CONTAS.filter(c => c.enabled);
-  // Duas consultas por conta: resultados de hoje e campanhas ativas agora. Os totais da
-  // unidade continuam somando tudo; o status só marca cada campanha com `ativa`.
-  const batch = contas.flatMap(c => [
-    {
+  const agora = Date.now();
+  const statusValido = statusGuardado && agora - statusGuardado.em < VALIDADE_STATUS;
+
+  // Resultados de hoje de cada conta e, quando vencido, o status. Os totais da unidade
+  // continuam somando tudo; o status só marca cada campanha com `ativa`.
+  const batch = [
+    ...contas.map(c => ({
       method: 'GET',
       relative_url: `${c.adAccountId}/insights?level=campaign&date_preset=today&limit=200&fields=campaign_id,campaign_name,actions,spend,account_currency`,
-    },
-    {
+    })),
+    ...(statusValido ? [] : contas.map(c => ({
       method: 'GET',
       relative_url: `${c.adAccountId}/campaigns?effective_status=${encodeURIComponent('["ACTIVE"]')}&fields=id&limit=500`,
-    },
-  ]);
+    }))),
+  ];
 
   try {
     const body = new URLSearchParams({
@@ -84,8 +92,23 @@ module.exports = async (req, res) => {
       try { return item && item.body ? JSON.parse(item.body) : null; } catch (_) { return null; }
     };
 
+    if (!statusValido) {
+      const anterior = statusGuardado?.porConta;
+      statusGuardado = {
+        em: agora,
+        porConta: new Map(contas.map((c, i) => {
+          const item = json[contas.length + i];
+          const corpo = lerItem(item);
+          const novo = item?.code === 200 && Array.isArray(corpo?.data)
+            ? { ativas: new Set(corpo.data.map(x => x.id)) }
+            : { erro: corpo?.error?.message || 'Falha ao consultar o status das campanhas' };
+          return [c.adAccountId, novo.ativas ? novo : (anterior?.get(c.adAccountId)?.ativas ? anterior.get(c.adAccountId) : novo)];
+        })),
+      };
+    }
+
     const unidades = contas.map((c, i) => {
-      const item = json[i * 2];
+      const item = json[i];
       const parsed = lerItem(item);
       if (!item || item.code !== 200 || !parsed || parsed.error) {
         return {
@@ -98,15 +121,12 @@ module.exports = async (req, res) => {
         };
       }
       // Se o status falhar, `ativa` fica null e a campanha segue visível, com o erro nos logs.
-      const itemStatus = json[i * 2 + 1];
-      const status = lerItem(itemStatus);
-      const statusOk = itemStatus?.code === 200 && Array.isArray(status?.data);
-      const ativas = new Set(statusOk ? status.data.map(x => x.id) : []);
+      const { ativas, erro: erroStatus = null } = statusGuardado.porConta.get(c.adAccountId);
 
       const linhas = parsed.data || [];
       const campanhas = linhas.map(row => ({
         ...resumirCampanha(row),
-        ativa: statusOk ? ativas.has(row.campaign_id) : null,
+        ativa: ativas ? ativas.has(row.campaign_id) : null,
       }));
       const somar = campo => campanhas.reduce((s, x) => s + x[campo], 0);
       return {
@@ -120,7 +140,7 @@ module.exports = async (req, res) => {
         moeda: linhas[0]?.account_currency || 'BRL',
         campanhas,
         erro: null,
-        erroStatus: statusOk ? null : (status?.error?.message || 'Falha ao consultar o status das campanhas'),
+        erroStatus,
       };
     });
 
