@@ -14,7 +14,7 @@
   *{box-sizing:border-box}
   [hidden]{display:none!important}
   body{margin:0;background:var(--bg);color:var(--txt);font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
-  .wrap{max-width:1500px;margin:0 auto;padding:12px 16px 20px}
+  .wrap{max-width:1120px;margin:0 auto;padding:12px 16px 20px}
   header{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;justify-content:space-between;margin-bottom:10px}
   .tit{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 14px}
   h1{font-size:16px;font-weight:700;margin:0;letter-spacing:.2px}
@@ -36,8 +36,8 @@
   .kpi .v{font-size:24px;font-weight:800;margin-top:2px;font-variant-numeric:tabular-nums;line-height:1.15}
   .kpi.main .v{color:var(--acc)}
   .kpi .s{font-size:11px;color:var(--mut);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .main-grid{display:grid;grid-template-columns:1fr 240px;gap:8px;align-items:start}
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(172px,1fr));gap:8px}
+  .main-grid{display:grid;grid-template-columns:1fr 210px;gap:8px;align-items:start}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:8px}
   .card{position:relative;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 10px;transition:border-color .4s, background .4s;overflow:hidden}
   .card .rank{position:absolute;top:8px;right:10px;font-size:11px;color:var(--mut);font-weight:600}
   .card .nm{font-size:11px;font-weight:600;color:#d4d4d8;letter-spacing:.3px;padding-right:30px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -50,7 +50,7 @@
   .card.lead1 .rank{color:var(--gold)}
   .plus{position:absolute;right:10px;top:25px;font-weight:800;color:var(--acc);font-size:15px;animation:rise 2.4s ease-out forwards}
   @keyframes rise{0%{opacity:0;transform:translateY(6px)}15%{opacity:1;transform:none}80%{opacity:1}100%{opacity:0;transform:translateY(-10px)}}
-  .feed{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:9px 12px;max-height:calc(100vh - 160px);overflow:auto}
+  .feed{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:9px 12px;max-height:min(calc(100vh - 160px),440px);overflow:auto}
   .feed h2{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.6px;margin:0 0 4px;font-weight:600}
   .ev{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid var(--line);font-size:12px}
   .ev:first-of-type{border-top:0}
@@ -62,10 +62,17 @@
   .bar-acoes .info{font-size:12px;color:var(--mut)}
   .filtros{display:flex;flex-wrap:wrap;gap:6px}
   .filtros button.on{border-color:var(--acc);color:var(--acc)}
-  input{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:5px 10px;font:400 12px Inter,sans-serif;width:260px;max-width:100%}
-  .tabela{background:var(--card);border:1px solid var(--line);border-radius:9px;overflow:auto;max-height:calc(100vh - 110px)}
+  input{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:3px 6px;font:400 11px Inter,sans-serif;width:100%;min-width:50px}
+  th.esq input{min-width:90px}
+  th input{text-align:left}
+  .ord{background:none;border:0;padding:0;font:inherit;color:inherit;border-radius:3px}
+  .ord:hover{color:var(--txt)}
+  th[aria-sort] .ord{color:var(--acc)}
+  .linha-fil th{padding-top:0}
+  .tabela{background:var(--card);border:1px solid var(--line);border-radius:9px;overflow:auto;max-height:min(calc(100vh - 110px),620px)}
   table{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
-  th{position:sticky;top:0;background:var(--card2);color:var(--mut);font-size:11px;font-weight:600;text-align:right;padding:7px 10px;white-space:nowrap}
+  thead{position:sticky;top:0;z-index:1}
+  th{background:var(--card2);color:var(--mut);font-size:11px;font-weight:600;text-align:right;padding:7px 10px;white-space:nowrap}
   td{padding:6px 10px;border-top:1px solid var(--line);text-align:right;white-space:nowrap}
   th.esq,td.esq{text-align:left}
   td.nome{white-space:normal;min-width:220px}
@@ -113,15 +120,11 @@
 
   <main id="aba-campanhas" hidden>
     <div class="bar-acoes">
-      <input id="busca" type="search" placeholder="Buscar campanha ou unidade" aria-label="Buscar campanha ou unidade">
       <span class="info" id="campInfo"></span>
+      <button id="limparFiltros">Limpar filtros</button>
     </div>
     <div class="tabela"><table>
-      <thead><tr>
-        <th class="esq">Campanha</th><th class="esq">Unidade</th><th>Conversas</th>
-        <th title="Estimativa mínima">Msgs/conversa</th><th>2+ msgs</th><th>3+ msgs</th><th>5+ msgs</th>
-        <th>Leads</th><th>Investimento</th><th>CPL</th>
-      </tr></thead>
+      <thead id="campCab"></thead>
       <tbody id="campLinhas"></tbody>
     </table></div>
   </main>
@@ -212,7 +215,7 @@ renderLogs();
 // ---- modo demonstração (?demo) ----
 const demoCampanha = i => {
   const conversas = Math.floor(Math.random()*14), m2 = Math.floor(conversas*.6), m3 = Math.floor(m2*.6), m5 = Math.floor(m3*.5);
-  return {id:String(i), nome:`Mensagens | Público ${String.fromCharCode(65+i)}`, leads:conversas, conversas, m2, m3, m5, msgs:conversas+m2+m3+2*m5, gasto:Math.random()*220+40};
+  return {id:String(i), nome:`${i===2?'[TRÁFEGO]':'[MENSAGENS]'} Público ${String.fromCharCode(65+i)}`, leads:conversas, conversas, m2, m3, m5, msgs:conversas+m2+m3+2*m5, gasto:Math.random()*220+40};
 };
 const demoBase = ['F. SANTANA','FORTALEZA','MOSSORO','TERESINA','SALVADOR','CAMPINA GRANDE','CARUARU','JOAO PESSOA','NATAL','RECIFE','RIBEIRAO PRETO','BRASILIA','PRAIA GRANDE','CAMPINAS','DOURADOS','MACEIO','PATOS']
   .map(u => ({unidade:u, campanhas:Array.from({length:1+Math.floor(Math.random()*4)}, (_,i)=>demoCampanha(i))}));
@@ -306,22 +309,67 @@ function render(d){
   anterior = Object.fromEntries(ok.map(u=>[u.unidade,u.leads]));
 }
 
+// ---- aba Campanhas: só a tag abaixo, com ordenação e filtro em cada coluna ----
+const TAG_CAMPANHA = '[MENSAGENS]';
+const COLUNAS = [
+  {k:'nome', t:'Campanha', txt:true},
+  {k:'unidade', t:'Unidade', txt:true},
+  {k:'conversas', t:'Conversas'},
+  {k:'mpc', t:'Msgs/conversa', dica:'Estimativa mínima'},
+  {k:'m2', t:'2+ msgs'},
+  {k:'m3', t:'3+ msgs'},
+  {k:'leads', t:'Leads'},
+  {k:'gasto', t:'Investimento'},
+  {k:'cpl', t:'CPL'},
+];
+let ordem = {k:'conversas', dir:-1};
+
+$('campCab').innerHTML = `<tr>${COLUNAS.map(c => `<th class="${c.txt?'esq':''}" data-k="${c.k}"><button class="ord" title="${c.dica || 'Ordenar'}">${c.t}<span class="seta"></span></button></th>`).join('')}</tr>
+  <tr class="linha-fil">${COLUNAS.map(c => `<th class="${c.txt?'esq':''}"><input data-k="${c.k}" ${c.txt?'':'inputmode="decimal"'} placeholder="${c.txt?'Filtrar':'mín.'}" aria-label="Filtrar ${c.t}"></th>`).join('')}</tr>`;
+
+function passaFiltro(c, campo){
+  const v = campo.value.trim();
+  if (!v) return true;
+  if (COLUNAS.find(x => x.k === campo.dataset.k).txt) return c[campo.dataset.k].toLowerCase().includes(v.toLowerCase());
+  const min = Number(v.replace(',', '.'));
+  return Number.isNaN(min) || (c[campo.dataset.k] != null && c[campo.dataset.k] >= min);
+}
+function comparar(a, b){
+  const x = a[ordem.k], y = b[ordem.k];
+  if (x == null || y == null) return (x == null) - (y == null);   // sem valor fica sempre no fim
+  return ordem.dir * (typeof x === 'string' ? x.localeCompare(y, 'pt-BR') : x - y);
+}
 function renderCampanhas(){
-  const q = $('busca').value.trim().toLowerCase();
-  const linhas = campanhas
-    .filter(c => !q || `${c.nome} ${c.unidade}`.toLowerCase().includes(q))
-    .sort((a,b) => b.conversas - a.conversas || b.gasto - a.gasto);
-  $('campInfo').textContent = `${linhas.length} de ${campanhas.length} campanhas · msgs/conversa é uma estimativa mínima`;
+  const campos = [...document.querySelectorAll('#campCab input')];
+  const base = campanhas
+    .filter(c => c.nome.toUpperCase().includes(TAG_CAMPANHA))
+    .map(c => ({...c, mpc: c.conversas ? c.msgs/c.conversas : null, cpl: c.leads ? c.gasto/c.leads : null}));
+  const linhas = base.filter(c => campos.every(f => passaFiltro(c, f))).sort(comparar);
+
+  document.querySelectorAll('#campCab th[data-k]').forEach(th => {
+    const ativa = th.dataset.k === ordem.k;
+    if (ativa) th.setAttribute('aria-sort', ordem.dir > 0 ? 'ascending' : 'descending'); else th.removeAttribute('aria-sort');
+    th.querySelector('.seta').textContent = ativa ? (ordem.dir > 0 ? ' ▲' : ' ▼') : '';
+  });
+  $('campInfo').textContent = `${linhas.length} de ${base.length} campanhas ${TAG_CAMPANHA} · msgs/conversa é uma estimativa mínima`;
   $('campLinhas').innerHTML = linhas.length
     ? linhas.map(c => `<tr>
         <td class="esq nome">${esc(c.nome)}</td><td class="esq">${esc(c.unidade)}</td>
         <td class="forte">${c.conversas}</td><td>${media(c.msgs, c.conversas)}</td>
-        <td>${c.m2}</td><td>${c.m3}</td><td>${c.m5}</td>
-        <td>${c.leads}</td><td>${brl(c.gasto)}</td><td>${c.leads ? brl(c.gasto/c.leads) : '–'}</td>
+        <td>${c.m2}</td><td>${c.m3}</td>
+        <td>${c.leads}</td><td>${brl(c.gasto)}</td><td>${brl(c.cpl)}</td>
       </tr>`).join('')
-    : '<tr><td class="esq" colspan="10"><div class="empty">Nenhuma campanha encontrada.</div></td></tr>';
+    : `<tr><td class="esq" colspan="${COLUNAS.length}"><div class="empty">Nenhuma campanha encontrada.</div></td></tr>`;
 }
-$('busca').oninput = renderCampanhas;
+$('campCab').oninput = renderCampanhas;
+$('campCab').onclick = e => {
+  const th = e.target.closest('.ord')?.closest('th');
+  if (!th) return;
+  const k = th.dataset.k;
+  ordem = ordem.k === k ? {k, dir:-ordem.dir} : {k, dir:COLUNAS.find(c => c.k === k).txt ? 1 : -1};
+  renderCampanhas();
+};
+$('limparFiltros').onclick = () => { document.querySelectorAll('#campCab input').forEach(f => f.value = ''); renderCampanhas(); };
 
 async function ciclo(manual){
   if (buscando) return;
