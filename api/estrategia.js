@@ -30,6 +30,8 @@ function valorAcao(actions, tipo) {
 
 const numero = v => (v != null ? Number(v) : null);
 
+const rastreada = campanha => (campanha.name || '').toUpperCase().includes(TAG_CAMPANHA);
+
 // Conjunto ativo na Meta pode estar agendado ou já encerrado: vale só o que está no período hoje.
 function noPeriodo(conjunto, agora) {
   const inicio = Date.parse(conjunto.start_time);
@@ -37,10 +39,13 @@ function noPeriodo(conjunto, agora) {
   return !(inicio > agora) && !(fim < agora);
 }
 
-// Soma o orçamento diário do que está no período e o gasto dessas campanhas hoje. O orçamento pode
-// estar na campanha ou nos conjuntos; a Meta devolve em centavos.
-function resumirOrcamento(campanhas, conjuntos, agora = Date.now()) {
+// Soma o orçamento diário do que está no período e o gasto dessas campanhas hoje, só nas campanhas
+// rastreadas. O orçamento pode estar na campanha ou nos conjuntos; a Meta devolve em centavos.
+function resumirOrcamento(todasCampanhas, todosConjuntos, agora = Date.now()) {
   let orcamento = 0, consumido = 0, semDiario = 0;
+  const campanhas = todasCampanhas.filter(rastreada);
+  const ids = new Set(campanhas.map(c => c.id));
+  const conjuntos = todosConjuntos.filter(s => ids.has(s.campaign_id));
   const vigentes = conjuntos.filter(s => noPeriodo(s, agora));
   for (const c of campanhas) {
     const daCampanha = vigentes.filter(s => s.campaign_id === c.id);
@@ -120,7 +125,7 @@ module.exports = async (req, res) => {
         const porId = new Map(campanhas.data.map(x => [x.id, x]));
         for (const ad of ads.data) {
           const campanha = porId.get(ad.campaign_id);
-          if (!campanha || !(campanha.name || '').toUpperCase().includes(TAG_CAMPANHA)) continue;
+          if (!campanha || !rastreada(campanha)) continue;
           const anuncio = resumirAnuncio(ad, c.unidade, campanha);
           if (anuncio) anuncios.push(anuncio);
         }

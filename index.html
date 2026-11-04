@@ -400,13 +400,13 @@ const medidor = v => v == null ? '' : `<div class="medidor"><i style="width:${Ma
 
 const mostrarUnidades = tabelaOrdenavel('uniCab', 'uniLinhas', [
   {k:'unidade', t:'Unidade', txt:true},
-  {k:'orcamento', t:'Orçamento diário', dica:'Soma do orçamento diário do que está no período de veiculação hoje'},
-  {k:'consumido', t:'Consumido'},
+  {k:'orcamento', t:'Orçamento diário', dica:'Campanhas ativas [MENSAGENS] com conjuntos no período de veiculação hoje'},
+  {k:'consumido', t:'Consumido', dica:'Gasto de hoje nessas mesmas campanhas'},
   {k:'pct', t:'% consumido', dica:'A marca branca mostra quanto do dia já passou'},
-  {k:'alcanceHoje', t:'Alcance hoje'},
-  {k:'freqHoje', t:'Freq. hoje'},
-  {k:'alcance7d', t:'Alcance 7 dias'},
-  {k:'freq7d', t:'Freq. 7 dias'},
+  {k:'alcanceHoje', t:'Alcance hoje', dica:'Todas as campanhas da unidade'},
+  {k:'freqHoje', t:'Freq. hoje', dica:'Todas as campanhas da unidade'},
+  {k:'alcance7d', t:'Alcance 7 dias', dica:'Todas as campanhas da unidade'},
+  {k:'freq7d', t:'Freq. 7 dias', dica:'Todas as campanhas da unidade'},
 ], {k:'pct', dir:-1}, 'Nenhuma unidade encontrada.', u => `
   <td class="esq">${esc(u.unidade)}</td><td>${brl(u.orcamento)}</td><td>${brl(u.consumido)}</td>
   <td class="forte">${pct(u.pct)}${medidor(u.pct)}</td>
@@ -452,7 +452,7 @@ function renderEstrategia(d){
   const somar = campo => d.unidades.reduce((s,u)=>s+(u[campo]||0),0);
   const orcamento = somar('orcamento'), consumido = somar('consumido'), semDiario = somar('semDiario'), fora = somar('foraDoPeriodo');
   const partes = [
-    `Orçamento do dia ${brl(orcamento)}`,
+    `Orçamento do dia ${TAG_CAMPANHA} ${brl(orcamento)}`,
     `consumido ${brl(consumido)} (${pct(razao(consumido, orcamento))})`,
     `${pct(fracaoDia)} do dia já passou`,
   ];
