@@ -12,11 +12,10 @@ const LEAD_TYPES = (process.env.LEAD_ACTION_TYPES ||
   'onsite_conversion.messaging_conversation_started_7d,lead,onsite_conversion.lead_grouped,leadgen_grouped,offsite_conversion.fb_pixel_lead')
   .split(',').map(s => s.trim()).filter(Boolean);
 
-// Conversas iniciadas e quantas chegaram a 2, 3 e 5 mensagens do cliente.
+// Conversas iniciadas, quantas chegaram a 3 mensagens do cliente e quantas foram bloqueadas.
 const TIPO_CONVERSA = 'onsite_conversion.messaging_conversation_started_7d';
-
-// A Meta já usou mais de um nome para essas faixas; aceita as duas grafias.
-const faixaMensagens = n => new RegExp(`messaging_user(_conversation)?_depth_${n}_message_send$`);
+const TIPO_MSG_3 = 'onsite_conversion.messaging_user_depth_3_message_send';
+const TIPO_BLOQUEIO = 'onsite_conversion.messaging_block';
 
 function contarLeads(actions) {
   if (!Array.isArray(actions)) return 0;
@@ -33,26 +32,15 @@ function valorAcao(actions, tipo) {
   return a ? Number(a.value) || 0 : 0;
 }
 
-function valorFaixa(actions, n) {
-  if (!Array.isArray(actions)) return 0;
-  const regra = faixaMensagens(n);
-  const a = actions.find(x => regra.test(x.action_type));
-  return a ? Number(a.value) || 0 : 0;
-}
-
 function resumirCampanha(row) {
-  const conversas = valorAcao(row.actions, TIPO_CONVERSA);
-  const m2 = valorFaixa(row.actions, 2);
-  const m3 = valorFaixa(row.actions, 3);
-  const m5 = valorFaixa(row.actions, 5);
   return {
     id: row.campaign_id,
     nome: row.campaign_name || 'Sem nome',
     leads: contarLeads(row.actions),
     gasto: row.spend != null ? Number(row.spend) : 0,
-    conversas, m2, m3, m5,
-    // A Meta não informa o total de mensagens: este é o mínimo garantido pelas faixas acima.
-    msgs: conversas + m2 + m3 + 2 * m5,
+    conversas: valorAcao(row.actions, TIPO_CONVERSA),
+    m3: valorAcao(row.actions, TIPO_MSG_3),
+    bloqueios: valorAcao(row.actions, TIPO_BLOQUEIO),
   };
 }
 
@@ -96,9 +84,6 @@ module.exports = async (req, res) => {
       try { return item && item.body ? JSON.parse(item.body) : null; } catch (_) { return null; }
     };
 
-    // Diagnóstico: tipos de mensagem que a Meta devolveu hoje, com o total de cada um.
-    const tiposMensagem = {};
-
     const unidades = contas.map((c, i) => {
       const item = json[i * 2];
       const parsed = lerItem(item);
@@ -119,9 +104,6 @@ module.exports = async (req, res) => {
       const ativas = new Set(statusOk ? status.data.map(x => x.id) : []);
 
       const linhas = parsed.data || [];
-      linhas.flatMap(row => row.actions || [])
-        .filter(a => /messag|depth/i.test(a.action_type))
-        .forEach(a => { tiposMensagem[a.action_type] = (tiposMensagem[a.action_type] || 0) + (Number(a.value) || 0); });
       const campanhas = linhas.map(row => ({
         ...resumirCampanha(row),
         ativa: statusOk ? ativas.has(row.campaign_id) : null,
@@ -133,7 +115,8 @@ module.exports = async (req, res) => {
         leads: somar('leads'),
         gasto: somar('gasto'),
         conversas: somar('conversas'),
-        msgs: somar('msgs'),
+        m3: somar('m3'),
+        bloqueios: somar('bloqueios'),
         moeda: linhas[0]?.account_currency || 'BRL',
         campanhas,
         erro: null,
@@ -143,7 +126,7 @@ module.exports = async (req, res) => {
 
     // Cache curto na CDN do Vercel: várias telas abertas dividem a mesma consulta à Meta.
     res.setHeader('Cache-Control', 's-maxage=8, stale-while-revalidate=4');
-    res.status(200).json({ atualizadoEm: new Date().toISOString(), unidades, tiposMensagem });
+    res.status(200).json({ atualizadoEm: new Date().toISOString(), unidades });
   } catch (e) {
     res.status(502).json({ erro: 'Falha ao consultar a Meta: ' + e.message });
   }

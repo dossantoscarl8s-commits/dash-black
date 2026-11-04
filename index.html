@@ -76,12 +76,14 @@
   th.esq,td.esq{text-align:left}
   td.nome{white-space:normal;min-width:160px}
   td.forte{font-weight:700}
+  .bom{color:var(--acc);font-weight:600}
+  .ruim{color:var(--err);font-weight:600}
   .tag{display:inline-block;min-width:62px;text-align:center;font-size:10px;font-weight:700;letter-spacing:.4px;padding:1px 6px;border-radius:5px;background:var(--card2);color:var(--mut)}
   .tag.lead{color:var(--acc)} .tag.erro{color:var(--err)} .tag.manual,.tag.info{color:var(--txt)}
   td.msg{text-align:left;white-space:normal;min-width:260px;width:100%}
   @media (max-width:1000px){.top{grid-template-columns:repeat(2,1fr)}.kpi.main{grid-column:1/-1}.main-grid{grid-template-columns:1fr}.feed{max-height:none}}
   @media (max-width:1000px){.wrap{width:auto;padding:12px 16px 20px}}
-  @media (max-width:800px){#aba-campanhas .tabela{overflow-x:auto}}
+  @media (max-width:860px){#aba-campanhas .tabela{overflow-x:auto}}
   @media (max-width:640px){.grid{grid-template-columns:repeat(2,1fr)}header{align-items:flex-start}}
 </style>
 </head>
@@ -109,8 +111,8 @@
       <div class="kpi main"><div class="l">Leads hoje</div><div class="v" id="total">–</div><div class="s" id="totalS">&nbsp;</div></div>
       <div class="kpi"><div class="l">Investimento</div><div class="v" id="gasto">–</div><div class="s" id="unid">&nbsp;</div></div>
       <div class="kpi"><div class="l">Custo por lead</div><div class="v" id="cpl">–</div><div class="s">média das unidades</div></div>
-      <div class="kpi" title="Estimativa mínima: a Meta só informa quantas conversas chegaram a 2, 3 e 5 mensagens do cliente."><div class="l">Msgs por conversa</div><div class="v" id="mpc">–</div><div class="s" id="conv">&nbsp;</div></div>
-      <div class="kpi"><div class="l">Campanhas</div><div class="v" id="ncamp">–</div><div class="s">com entrega hoje</div></div>
+      <div class="kpi" title="Conversas com 3 ou mais mensagens do cliente ÷ conversas iniciadas."><div class="l">Qualificação</div><div class="v" id="taxa">–</div><div class="s" id="conv">&nbsp;</div></div>
+      <div class="kpi" title="Investimento ÷ conversas com 3 ou mais mensagens do cliente."><div class="l">Custo por 3+ msgs</div><div class="v" id="custo">–</div><div class="s" id="ncamp">&nbsp;</div></div>
     </section>
 
     <div class="main-grid">
@@ -154,7 +156,17 @@ const DEMO = new URLSearchParams(location.search).has('demo');
 const brl = v => v == null ? '–' : v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:v>=1000?0:2});
 const hora = d => d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
 const dataHora = d => d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) + ' ' + hora(d);
-const media = (msgs, conversas) => conversas ? (msgs/conversas).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1}) : '–';
+const pct = v => v == null ? '–' : v.toLocaleString('pt-BR',{style:'percent',maximumFractionDigits:1});
+const razao = (a, b) => b ? a/b : null;
+
+// Compara o CPL com a média da rede: 20% abaixo é bom, 30% acima ou gasto sem lead pede atenção.
+const CPL_BOM = .8, CPL_RUIM = 1.3;
+function classeCpl(gasto, leads, mediaCpl){
+  if (!leads) return gasto > 0 ? 'ruim' : '';
+  if (mediaCpl == null) return '';
+  const cpl = gasto/leads;
+  return cpl >= mediaCpl*CPL_RUIM ? 'ruim' : cpl <= mediaCpl*CPL_BOM ? 'bom' : '';
+}
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const $ = id => document.getElementById(id);
 
@@ -162,6 +174,7 @@ let anterior = null;       // {unidade: leads}
 let diaAnterior = new Date().toDateString();
 let eventos = [];
 let campanhas = [];
+let mediaCpl = null;
 let errosAtivos = {};      // {unidade: mensagem}
 let ultimoOk = null;
 let buscando = false;
@@ -214,19 +227,19 @@ renderLogs();
 
 // ---- modo demonstração (?demo) ----
 const demoCampanha = i => {
-  const conversas = Math.floor(Math.random()*14), m2 = Math.floor(conversas*.6), m3 = Math.floor(m2*.6), m5 = Math.floor(m3*.5);
-  return {id:String(i), nome:`${i===2?'[TRÁFEGO]':'[MENSAGENS]'} Público ${String.fromCharCode(65+i)}`, ativa:i!==3, leads:conversas, conversas, m2, m3, m5, msgs:conversas+m2+m3+2*m5, gasto:Math.random()*220+40};
+  const conversas = Math.floor(Math.random()*14), m3 = Math.floor(conversas*Math.random()*.5), bloqueios = Math.random()<.1 ? 1 : 0;
+  return {id:String(i), nome:`${i===2?'[TRÁFEGO]':'[MENSAGENS]'} Público ${String.fromCharCode(65+i)}`, ativa:i!==3, leads:conversas, conversas, m3, bloqueios, gasto:Math.random()*220+40};
 };
 const demoBase = ['F. SANTANA','FORTALEZA','MOSSORO','TERESINA','SALVADOR','CAMPINA GRANDE','CARUARU','JOAO PESSOA','NATAL','RECIFE','RIBEIRAO PRETO','BRASILIA','PRAIA GRANDE','CAMPINAS','DOURADOS','MACEIO','PATOS']
   .map(u => ({unidade:u, campanhas:Array.from({length:1+Math.floor(Math.random()*4)}, (_,i)=>demoCampanha(i))}));
 async function buscarDemo(){
   demoBase.forEach(u => u.campanhas.forEach(c => {
-    if (Math.random() < .1) { c.leads += 1; c.conversas += 1; c.m2 += Math.random()<.6; c.msgs = c.conversas+c.m2+c.m3+2*c.m5; c.gasto += Math.random()*15; }
+    if (Math.random() < .1) { c.leads += 1; c.conversas += 1; c.m3 += Math.random()<.3; c.gasto += Math.random()*15; }
   }));
   const somar = (u,campo) => u.campanhas.reduce((s,c)=>s+c[campo],0);
   return {atualizadoEm:new Date().toISOString(), unidades: demoBase.map(u=>({
     unidade:u.unidade, erro:null, campanhas:u.campanhas.map(c=>({...c})),
-    leads:somar(u,'leads'), gasto:somar(u,'gasto'), conversas:somar(u,'conversas'), msgs:somar(u,'msgs'),
+    leads:somar(u,'leads'), gasto:somar(u,'gasto'), conversas:somar(u,'conversas'), m3:somar(u,'m3'), bloqueios:somar(u,'bloqueios'),
   }))};
 }
 
@@ -245,8 +258,10 @@ function render(d){
   const total = ok.reduce((s,u)=>s+u.leads,0);
   const gasto = ok.reduce((s,u)=>s+(u.gasto||0),0);
   const conversas = ok.reduce((s,u)=>s+(u.conversas||0),0);
-  const msgs = ok.reduce((s,u)=>s+(u.msgs||0),0);
+  const m3 = ok.reduce((s,u)=>s+(u.m3||0),0);
+  const bloqueios = ok.reduce((s,u)=>s+(u.bloqueios||0),0);
   const max = Math.max(1, ...ok.map(u=>u.leads));
+  mediaCpl = razao(gasto, total);
   campanhas = ok.flatMap(u => (u.campanhas||[]).map(c => ({...c, unidade:u.unidade})));
 
   // virada do dia: zera o histórico
@@ -281,9 +296,10 @@ function render(d){
   $('gasto').textContent = brl(gasto);
   $('cpl').textContent = total ? brl(gasto/total) : '–';
   $('unid').textContent = `${ok.length} de ${us.length} unidades`;
-  $('mpc').textContent = media(msgs, conversas);
-  $('conv').textContent = `${conversas.toLocaleString('pt-BR')} conversas iniciadas`;
-  $('ncamp').textContent = campanhas.length.toLocaleString('pt-BR');
+  $('taxa').textContent = pct(razao(m3, conversas));
+  $('conv').textContent = `${m3.toLocaleString('pt-BR')} de ${conversas.toLocaleString('pt-BR')} conversas`;
+  $('custo').textContent = brl(razao(gasto, m3));
+  $('ncamp').textContent = `${campanhas.length} camp. · ${bloqueios} ${bloqueios===1?'bloqueio':'bloqueios'}`;
 
   const ordenadas = [...us].sort((a,b)=>(b.leads??-1)-(a.leads??-1));
   $('grid').innerHTML = ordenadas.map((u,i) => {
@@ -294,8 +310,8 @@ function render(d){
       <div class="rank">${i===0?'★ ':''}#${i+1}</div>
       <div class="nm">${esc(u.unidade)}</div>
       <div class="n">${u.leads}</div>
-      <div class="meta"><span>${brl(u.gasto)}</span><span>CPL ${cpl}</span></div>
-      <div class="meta"><span>${media(u.msgs, u.conversas)} msgs/conv</span><span>${nCamp} ${nCamp===1?'camp.':'camps.'}</span></div>
+      <div class="meta"><span>${brl(u.gasto)}</span><span class="${classeCpl(u.gasto, u.leads, mediaCpl)}">CPL ${cpl}</span></div>
+      <div class="meta"><span>3+: ${u.m3||0} · ${pct(razao(u.m3||0, u.conversas))}</span><span>${nCamp} ${nCamp===1?'camp.':'camps.'}</span></div>
       <div class="bar"><i style="width:${(u.leads/max*100).toFixed(1)}%"></i></div>
       ${novos[u.unidade]?`<span class="plus">+${novos[u.unidade]}</span>`:''}
     </div>`;
@@ -316,8 +332,9 @@ const COLUNAS = [
   {k:'nome', t:'Campanha', txt:true},
   {k:'unidade', t:'Unidade', txt:true},
   {k:'conversas', t:'Conversas'},
-  {k:'mpc', t:'Msgs/conversa', dica:'Estimativa mínima'},
-  {k:'m5', t:'5+ msgs'},
+  {k:'m3', t:'3+ msgs', dica:'Conversas com 3 ou mais mensagens do cliente'},
+  {k:'taxa', t:'Qualificação', dica:'3+ msgs ÷ conversas'},
+  {k:'custo', t:'Custo 3+', dica:'Investimento ÷ 3+ msgs'},
   {k:'leads', t:'Leads'},
   {k:'gasto', t:'Investimento'},
   {k:'cpl', t:'CPL'},
@@ -334,7 +351,7 @@ function comparar(a, b){
 function renderCampanhas(){
   const linhas = campanhas
     .filter(c => c.ativa !== false && c.nome.toUpperCase().includes(TAG_CAMPANHA))
-    .map(c => ({...c, mpc: c.conversas ? c.msgs/c.conversas : null, cpl: c.leads ? c.gasto/c.leads : null}))
+    .map(c => ({...c, taxa: razao(c.m3, c.conversas), custo: razao(c.gasto, c.m3), cpl: razao(c.gasto, c.leads)}))
     .sort(comparar);
 
   document.querySelectorAll('#campCab th[data-k]').forEach(th => {
@@ -346,9 +363,8 @@ function renderCampanhas(){
   $('campLinhas').innerHTML = linhas.length
     ? linhas.map(c => `<tr>
         <td class="esq nome">${esc(c.nome)}</td><td class="esq">${esc(c.unidade)}</td>
-        <td class="forte">${c.conversas}</td><td>${media(c.msgs, c.conversas)}</td>
-        <td>${c.m5}</td>
-        <td>${c.leads}</td><td>${brl(c.gasto)}</td><td>${brl(c.cpl)}</td>
+        <td class="forte">${c.conversas}</td><td>${c.m3}</td><td>${pct(c.taxa)}</td><td>${brl(c.custo)}</td>
+        <td>${c.leads}</td><td>${brl(c.gasto)}</td><td class="${classeCpl(c.gasto, c.leads, mediaCpl)}">${brl(c.cpl)}</td>
       </tr>`).join('')
     : `<tr><td class="esq" colspan="${COLUNAS.length}"><div class="empty">Nenhuma campanha encontrada.</div></td></tr>`;
 }
