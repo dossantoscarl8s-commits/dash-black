@@ -12,6 +12,12 @@ const LEAD_TYPES = (process.env.LEAD_ACTION_TYPES ||
   'onsite_conversion.messaging_conversation_started_7d,lead,onsite_conversion.lead_grouped,leadgen_grouped,offsite_conversion.fb_pixel_lead')
   .split(',').map(s => s.trim()).filter(Boolean);
 
+// Conversas iniciadas e quantas chegaram a 2, 3 e 5 mensagens do cliente.
+const TIPO_CONVERSA = 'onsite_conversion.messaging_conversation_started_7d';
+const TIPO_MSG_2 = 'onsite_conversion.messaging_user_depth_2_message_send';
+const TIPO_MSG_3 = 'onsite_conversion.messaging_user_depth_3_message_send';
+const TIPO_MSG_5 = 'onsite_conversion.messaging_user_depth_5_message_send';
+
 function contarLeads(actions) {
   if (!Array.isArray(actions)) return 0;
   for (const tipo of LEAD_TYPES) {
@@ -19,6 +25,28 @@ function contarLeads(actions) {
     if (a) return Number(a.value) || 0;
   }
   return 0;
+}
+
+function valorAcao(actions, tipo) {
+  if (!Array.isArray(actions)) return 0;
+  const a = actions.find(x => x.action_type === tipo);
+  return a ? Number(a.value) || 0 : 0;
+}
+
+function resumirCampanha(row) {
+  const conversas = valorAcao(row.actions, TIPO_CONVERSA);
+  const m2 = valorAcao(row.actions, TIPO_MSG_2);
+  const m3 = valorAcao(row.actions, TIPO_MSG_3);
+  const m5 = valorAcao(row.actions, TIPO_MSG_5);
+  return {
+    id: row.campaign_id,
+    nome: row.campaign_name || 'Sem nome',
+    leads: contarLeads(row.actions),
+    gasto: row.spend != null ? Number(row.spend) : 0,
+    conversas, m2, m3, m5,
+    // A Meta não informa o total de mensagens: este é o mínimo garantido pelas faixas acima.
+    msgs: conversas + m2 + m3 + 2 * m5,
+  };
 }
 
 module.exports = async (req, res) => {
@@ -31,7 +59,7 @@ module.exports = async (req, res) => {
   const contas = CONTAS.filter(c => c.enabled);
   const batch = contas.map(c => ({
     method: 'GET',
-    relative_url: `${c.adAccountId}/insights?level=account&date_preset=today&fields=actions,spend,account_name,account_currency`,
+    relative_url: `${c.adAccountId}/insights?level=campaign&date_preset=today&limit=200&fields=campaign_id,campaign_name,actions,spend,account_currency`,
   }));
 
   try {
@@ -59,16 +87,22 @@ module.exports = async (req, res) => {
           adAccountId: c.adAccountId,
           leads: null,
           gasto: null,
+          campanhas: [],
           erro: parsed?.error?.message || `Erro HTTP ${item?.code ?? '?'}`,
         };
       }
-      const row = (parsed.data && parsed.data[0]) || {};
+      const linhas = parsed.data || [];
+      const campanhas = linhas.map(resumirCampanha);
+      const somar = campo => campanhas.reduce((s, x) => s + x[campo], 0);
       return {
         unidade: c.unidade,
         adAccountId: c.adAccountId,
-        leads: contarLeads(row.actions),
-        gasto: row.spend != null ? Number(row.spend) : 0,
-        moeda: row.account_currency || 'BRL',
+        leads: somar('leads'),
+        gasto: somar('gasto'),
+        conversas: somar('conversas'),
+        msgs: somar('msgs'),
+        moeda: linhas[0]?.account_currency || 'BRL',
+        campanhas,
         erro: null,
       };
     });

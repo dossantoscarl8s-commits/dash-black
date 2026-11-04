@@ -1,7 +1,7 @@
 # Dashboard de leads ao vivo (Meta Ads)
 
-- `index.html`: o painel (atualiza a cada 10 s). Abra com `?demo` para ver com números fictícios.
-- `api/leads.js`: rota serverless que consulta as 17 contas numa única chamada batch da Graph API.
+- `index.html`: o painel, com as abas Painel, Campanhas e Logs (atualiza a cada 10 s ou pelo botão Atualizar). Abra com `?demo` para ver com números fictícios.
+- `api/leads.js`: rota serverless que consulta as 17 contas por campanha numa única chamada batch da Graph API.
 - `lib/contas.js`: lista de unidades e contas.
 
 ## Publicar no Vercel

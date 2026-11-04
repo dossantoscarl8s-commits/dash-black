@@ -12,102 +12,225 @@
     --txt:#f4f4f5; --mut:#8b8b93; --acc:#22c55e; --acc2:#16a34a; --err:#f87171; --gold:#facc15;
   }
   *{box-sizing:border-box}
+  [hidden]{display:none!important}
   body{margin:0;background:var(--bg);color:var(--txt);font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
-  .wrap{max-width:1500px;margin:0 auto;padding:24px 16px 40px}
-  header{display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between;margin-bottom:22px}
-  h1{font-size:20px;font-weight:700;margin:0;letter-spacing:.2px}
-  .live{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--mut)}
-  .dot{width:9px;height:9px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 0 rgba(34,197,94,.7);animation:pulse 2s infinite}
+  .wrap{max-width:1500px;margin:0 auto;padding:12px 16px 20px}
+  header{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .tit{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 14px}
+  h1{font-size:16px;font-weight:700;margin:0;letter-spacing:.2px}
+  .live{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--mut)}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 0 rgba(34,197,94,.7);animation:pulse 2s infinite}
   .dot.off{background:var(--err);animation:none}
-  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,.6)}70%{box-shadow:0 0 0 10px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
-  .hdr-r{display:flex;gap:10px;align-items:center}
-  button{background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font:500 13px Inter,sans-serif;cursor:pointer}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,.6)}70%{box-shadow:0 0 0 8px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
+  .hdr-r{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  button{background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:5px 10px;font:500 12px Inter,sans-serif;cursor:pointer}
   button:hover{border-color:#3a3a40}
-  .top{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:14px;margin-bottom:18px}
-  .kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px}
-  .kpi .l{font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.8px;font-weight:600}
-  .kpi .v{font-size:44px;font-weight:800;margin-top:6px;font-variant-numeric:tabular-nums;line-height:1.05}
-  .kpi.main .v{font-size:64px;color:var(--acc)}
-  .kpi .s{font-size:13px;color:var(--mut);margin-top:6px}
-  .main-grid{display:grid;grid-template-columns:1fr 320px;gap:14px;align-items:start}
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
-  .card{position:relative;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;transition:border-color .4s, background .4s;overflow:hidden}
-  .card .rank{position:absolute;top:12px;right:14px;font-size:12px;color:var(--mut);font-weight:600}
-  .card .nm{font-size:13px;font-weight:600;color:#d4d4d8;letter-spacing:.3px;padding-right:28px}
-  .card .n{font-size:40px;font-weight:800;margin:6px 0 2px;font-variant-numeric:tabular-nums}
-  .card .meta{font-size:12px;color:var(--mut);display:flex;justify-content:space-between;gap:8px}
-  .card .bar{height:4px;background:var(--card2);border-radius:4px;margin-top:10px;overflow:hidden}
-  .card .bar i{display:block;height:100%;background:var(--acc2);border-radius:4px;transition:width .6s}
+  button:disabled{opacity:.55;cursor:default}
+  button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+  .tabs{display:flex;gap:2px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:2px}
+  .tabs button{background:none;border-color:transparent;border-radius:6px;color:var(--mut)}
+  .tabs button.on{background:var(--card2);color:var(--txt)}
+  .top{display:grid;grid-template-columns:1.2fr repeat(4,1fr);gap:8px;margin-bottom:10px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 13px;min-width:0}
+  .kpi .l{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.6px;font-weight:600}
+  .kpi .v{font-size:24px;font-weight:800;margin-top:2px;font-variant-numeric:tabular-nums;line-height:1.15}
+  .kpi.main .v{color:var(--acc)}
+  .kpi .s{font-size:11px;color:var(--mut);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .main-grid{display:grid;grid-template-columns:1fr 240px;gap:8px;align-items:start}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(172px,1fr));gap:8px}
+  .card{position:relative;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 10px;transition:border-color .4s, background .4s;overflow:hidden}
+  .card .rank{position:absolute;top:8px;right:10px;font-size:11px;color:var(--mut);font-weight:600}
+  .card .nm{font-size:11px;font-weight:600;color:#d4d4d8;letter-spacing:.3px;padding-right:30px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .card .n{font-size:22px;font-weight:800;margin:1px 0;font-variant-numeric:tabular-nums;line-height:1.2}
+  .card .meta{font-size:11px;color:var(--mut);display:flex;justify-content:space-between;gap:6px;line-height:1.4;font-variant-numeric:tabular-nums}
+  .card .bar{height:3px;background:var(--card2);border-radius:3px;margin-top:6px;overflow:hidden}
+  .card .bar i{display:block;height:100%;background:var(--acc2);border-radius:3px;transition:width .6s}
   .card.flash{border-color:var(--acc);background:#10251a}
-  .card.err .n{color:var(--err);font-size:16px;font-weight:600;margin:14px 0 8px}
+  .card.err .n{color:var(--err);font-size:13px;font-weight:600;margin:5px 0}
   .card.lead1 .rank{color:var(--gold)}
-  .plus{position:absolute;right:14px;top:38px;font-weight:800;color:var(--acc);font-size:20px;animation:rise 2.4s ease-out forwards}
-  @keyframes rise{0%{opacity:0;transform:translateY(8px)}15%{opacity:1;transform:none}80%{opacity:1}100%{opacity:0;transform:translateY(-14px)}}
-  .feed{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;max-height:calc(100vh - 260px);overflow:auto}
-  .feed h2{font-size:13px;color:var(--mut);text-transform:uppercase;letter-spacing:.8px;margin:0 0 10px;font-weight:600}
-  .ev{display:flex;justify-content:space-between;gap:8px;padding:9px 0;border-top:1px solid var(--line);font-size:14px}
+  .plus{position:absolute;right:10px;top:25px;font-weight:800;color:var(--acc);font-size:15px;animation:rise 2.4s ease-out forwards}
+  @keyframes rise{0%{opacity:0;transform:translateY(6px)}15%{opacity:1;transform:none}80%{opacity:1}100%{opacity:0;transform:translateY(-10px)}}
+  .feed{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:9px 12px;max-height:calc(100vh - 160px);overflow:auto}
+  .feed h2{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.6px;margin:0 0 4px;font-weight:600}
+  .ev{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid var(--line);font-size:12px}
   .ev:first-of-type{border-top:0}
-  .ev b{color:var(--acc)} .ev time{color:var(--mut);font-size:12px;white-space:nowrap}
-  .empty{color:var(--mut);font-size:13px;padding:6px 0}
-  .banner{display:none;background:#2a1215;border:1px solid #5b1d22;color:#fecaca;padding:10px 14px;border-radius:10px;margin-bottom:14px;font-size:14px}
+  .ev b{color:var(--acc)} .ev time{color:var(--mut);font-size:11px;white-space:nowrap}
+  .empty{color:var(--mut);font-size:12px;padding:6px 0}
+  .banner{display:none;background:#2a1215;border:1px solid #5b1d22;color:#fecaca;padding:6px 11px;border-radius:8px;margin-bottom:10px;font-size:12px}
   .demo{background:#2a2410;border-color:#5b4d1d;color:#fde68a}
-  @media (max-width:1000px){.main-grid{grid-template-columns:1fr}.feed{max-height:none}}
-  @media (max-width:640px){.top{grid-template-columns:1fr}.kpi.main .v{font-size:52px}.grid{grid-template-columns:repeat(2,1fr)}.card .n{font-size:32px}}
+  .bar-acoes{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .bar-acoes .info{font-size:12px;color:var(--mut)}
+  .filtros{display:flex;flex-wrap:wrap;gap:6px}
+  .filtros button.on{border-color:var(--acc);color:var(--acc)}
+  input{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:5px 10px;font:400 12px Inter,sans-serif;width:260px;max-width:100%}
+  .tabela{background:var(--card);border:1px solid var(--line);border-radius:9px;overflow:auto;max-height:calc(100vh - 110px)}
+  table{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+  th{position:sticky;top:0;background:var(--card2);color:var(--mut);font-size:11px;font-weight:600;text-align:right;padding:7px 10px;white-space:nowrap}
+  td{padding:6px 10px;border-top:1px solid var(--line);text-align:right;white-space:nowrap}
+  th.esq,td.esq{text-align:left}
+  td.nome{white-space:normal;min-width:220px}
+  td.forte{font-weight:700}
+  .tag{display:inline-block;min-width:62px;text-align:center;font-size:10px;font-weight:700;letter-spacing:.4px;padding:1px 6px;border-radius:5px;background:var(--card2);color:var(--mut)}
+  .tag.lead{color:var(--acc)} .tag.erro{color:var(--err)} .tag.manual,.tag.info{color:var(--txt)}
+  td.msg{text-align:left;white-space:normal;min-width:260px;width:100%}
+  @media (max-width:1000px){.top{grid-template-columns:repeat(2,1fr)}.kpi.main{grid-column:1/-1}.main-grid{grid-template-columns:1fr}.feed{max-height:none}}
+  @media (max-width:640px){.grid{grid-template-columns:repeat(2,1fr)}header{align-items:flex-start}}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <div>
+    <div class="tit">
       <h1>Leads de hoje · Meta Ads</h1>
       <div class="live"><span class="dot" id="dot"></span><span id="status">Conectando…</span></div>
     </div>
     <div class="hdr-r">
-      <button id="som" title="Tocar um som quando chegar lead">🔕 Som desligado</button>
+      <nav class="tabs" id="tabs" role="tablist">
+        <button role="tab" data-aba="painel">Painel</button>
+        <button role="tab" data-aba="campanhas">Campanhas</button>
+        <button role="tab" data-aba="logs">Logs</button>
+      </nav>
+      <button id="atualizar" title="Buscar os dados agora">↻ Atualizar</button>
     </div>
   </header>
 
   <div class="banner" id="banner"></div>
 
-  <section class="top">
-    <div class="kpi main"><div class="l">Total de leads hoje</div><div class="v" id="total">–</div><div class="s" id="totalS">&nbsp;</div></div>
-    <div class="kpi"><div class="l">Investimento hoje</div><div class="v" id="gasto">–</div><div class="s" id="unid">&nbsp;</div></div>
-    <div class="kpi"><div class="l">Custo por lead</div><div class="v" id="cpl">–</div><div class="s">média de todas as unidades</div></div>
-  </section>
+  <main id="aba-painel">
+    <section class="top">
+      <div class="kpi main"><div class="l">Leads hoje</div><div class="v" id="total">–</div><div class="s" id="totalS">&nbsp;</div></div>
+      <div class="kpi"><div class="l">Investimento</div><div class="v" id="gasto">–</div><div class="s" id="unid">&nbsp;</div></div>
+      <div class="kpi"><div class="l">Custo por lead</div><div class="v" id="cpl">–</div><div class="s">média das unidades</div></div>
+      <div class="kpi" title="Estimativa mínima: a Meta só informa quantas conversas chegaram a 2, 3 e 5 mensagens do cliente."><div class="l">Msgs por conversa</div><div class="v" id="mpc">–</div><div class="s" id="conv">&nbsp;</div></div>
+      <div class="kpi"><div class="l">Campanhas</div><div class="v" id="ncamp">–</div><div class="s">com entrega hoje</div></div>
+    </section>
 
-  <div class="main-grid">
-    <div class="grid" id="grid"></div>
-    <aside class="feed"><h2>Chegadas recentes</h2><div id="feed"><div class="empty">Aguardando novos leads…</div></div></aside>
-  </div>
+    <div class="main-grid">
+      <div class="grid" id="grid"></div>
+      <aside class="feed"><h2>Chegadas recentes</h2><div id="feed"><div class="empty">Aguardando novos leads…</div></div></aside>
+    </div>
+  </main>
+
+  <main id="aba-campanhas" hidden>
+    <div class="bar-acoes">
+      <input id="busca" type="search" placeholder="Buscar campanha ou unidade" aria-label="Buscar campanha ou unidade">
+      <span class="info" id="campInfo"></span>
+    </div>
+    <div class="tabela"><table>
+      <thead><tr>
+        <th class="esq">Campanha</th><th class="esq">Unidade</th><th>Conversas</th>
+        <th title="Estimativa mínima">Msgs/conversa</th><th>2+ msgs</th><th>3+ msgs</th><th>5+ msgs</th>
+        <th>Leads</th><th>Investimento</th><th>CPL</th>
+      </tr></thead>
+      <tbody id="campLinhas"></tbody>
+    </table></div>
+  </main>
+
+  <main id="aba-logs" hidden>
+    <div class="bar-acoes">
+      <div class="filtros" id="filtros">
+        <button data-f="todos">Todos</button>
+        <button data-f="lead">Leads</button>
+        <button data-f="erro">Erros</button>
+        <button data-f="ok">Atualizações</button>
+      </div>
+      <button id="limpar">Limpar logs</button>
+    </div>
+    <div class="tabela"><table>
+      <thead><tr><th class="esq">Horário</th><th class="esq">Tipo</th><th class="esq">Evento</th></tr></thead>
+      <tbody id="logLinhas"></tbody>
+    </table></div>
+  </main>
 </div>
 
 <script>
 const INTERVALO = 10000;
+const MAX_LOGS = 300;
+const CHAVE_LOGS = 'dash-leads-logs';
 const DEMO = new URLSearchParams(location.search).has('demo');
 const brl = v => v == null ? '–' : v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:v>=1000?0:2});
 const hora = d => d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+const dataHora = d => d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) + ' ' + hora(d);
+const media = (msgs, conversas) => conversas ? (msgs/conversas).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1}) : '–';
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const $ = id => document.getElementById(id);
 
 let anterior = null;       // {unidade: leads}
 let diaAnterior = new Date().toDateString();
 let eventos = [];
-let somLigado = false;
+let campanhas = [];
+let errosAtivos = {};      // {unidade: mensagem}
 let ultimoOk = null;
+let buscando = false;
+let timer = null;
 
-$('som').onclick = () => { somLigado = !somLigado; $('som').textContent = somLigado ? '🔔 Som ligado' : '🔕 Som desligado'; if (somLigado) beep(); };
-function beep(){ try{ const c=new (window.AudioContext||window.webkitAudioContext)(); const o=c.createOscillator(), g=c.createGain(); o.connect(g); g.connect(c.destination); o.frequency.value=880; g.gain.setValueAtTime(.15,c.currentTime); g.gain.exponentialRampToValueAtTime(.001,c.currentTime+.35); o.start(); o.stop(c.currentTime+.35);}catch(_){} }
+// ---- abas ----
+const ABAS = ['painel','campanhas','logs'];
+function abrirAba(nome){
+  const aba = ABAS.includes(nome) ? nome : 'painel';
+  ABAS.forEach(a => $('aba-'+a).hidden = a !== aba);
+  document.querySelectorAll('#tabs button').forEach(b => {
+    b.classList.toggle('on', b.dataset.aba === aba);
+    b.setAttribute('aria-selected', b.dataset.aba === aba);
+  });
+}
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { location.hash = b.dataset.aba; });
+addEventListener('hashchange', () => abrirAba(location.hash.slice(1)));
+abrirAba(location.hash.slice(1));
+
+// ---- logs ----
+let filtroLog = 'todos';
+const ROTULOS = {ok:'ATUALIZAÇÃO', manual:'MANUAL', lead:'LEAD', erro:'ERRO', info:'INFO'};
+function lerLogs(){ try { return JSON.parse(localStorage.getItem(CHAVE_LOGS)) || []; } catch(_) { return []; } }
+function salvarLogs(){ try { localStorage.setItem(CHAVE_LOGS, JSON.stringify(logs)); } catch(_) {} }
+let logs = lerLogs();
+
+// Atualizações seguidas e erros repetidos viram uma linha só, com contador.
+function registrar(tipo, texto){
+  const topo = logs[0];
+  if (topo && topo.tipo === tipo && (tipo === 'ok' || topo.texto === texto)) {
+    topo.t = Date.now(); topo.texto = texto; topo.vezes = (topo.vezes || 1) + 1;
+  } else {
+    logs.unshift({tipo, texto, t:Date.now()});
+  }
+  logs = logs.slice(0, MAX_LOGS);
+  salvarLogs();
+  renderLogs();
+}
+function renderLogs(){
+  const passa = l => filtroLog === 'todos' || l.tipo === filtroLog || (filtroLog === 'ok' && l.tipo === 'manual');
+  const linhas = logs.filter(passa);
+  $('logLinhas').innerHTML = linhas.length
+    ? linhas.map(l => `<tr><td class="esq">${dataHora(new Date(l.t))}</td><td class="esq"><span class="tag ${l.tipo}">${ROTULOS[l.tipo]}</span></td><td class="msg">${esc(l.texto)}${l.vezes>1?` <span style="color:var(--mut)">(${l.vezes}x)</span>`:''}</td></tr>`).join('')
+    : '<tr><td class="msg" colspan="3"><div class="empty">Nenhum registro.</div></td></tr>';
+  document.querySelectorAll('#filtros button').forEach(b => b.classList.toggle('on', b.dataset.f === filtroLog));
+}
+document.querySelectorAll('#filtros button').forEach(b => b.onclick = () => { filtroLog = b.dataset.f; renderLogs(); });
+$('limpar').onclick = () => { logs = []; salvarLogs(); renderLogs(); };
+renderLogs();
 
 // ---- modo demonstração (?demo) ----
+const demoCampanha = i => {
+  const conversas = Math.floor(Math.random()*14), m2 = Math.floor(conversas*.6), m3 = Math.floor(m2*.6), m5 = Math.floor(m3*.5);
+  return {id:String(i), nome:`Mensagens | Público ${String.fromCharCode(65+i)}`, leads:conversas, conversas, m2, m3, m5, msgs:conversas+m2+m3+2*m5, gasto:Math.random()*220+40};
+};
 const demoBase = ['F. SANTANA','FORTALEZA','MOSSORO','TERESINA','SALVADOR','CAMPINA GRANDE','CARUARU','JOAO PESSOA','NATAL','RECIFE','RIBEIRAO PRETO','BRASILIA','PRAIA GRANDE','CAMPINAS','DOURADOS','MACEIO','PATOS']
-  .map(u => ({unidade:u, leads:Math.floor(Math.random()*40), gasto:Math.random()*600+80, erro:null}));
+  .map(u => ({unidade:u, campanhas:Array.from({length:1+Math.floor(Math.random()*4)}, (_,i)=>demoCampanha(i))}));
 async function buscarDemo(){
-  demoBase.forEach(u => { if (Math.random() < .25) { u.leads += 1 + (Math.random()<.2); u.gasto += Math.random()*15; } });
-  return {atualizadoEm:new Date().toISOString(), unidades: demoBase.map(u=>({...u}))};
+  demoBase.forEach(u => u.campanhas.forEach(c => {
+    if (Math.random() < .1) { c.leads += 1; c.conversas += 1; c.m2 += Math.random()<.6; c.msgs = c.conversas+c.m2+c.m3+2*c.m5; c.gasto += Math.random()*15; }
+  }));
+  const somar = (u,campo) => u.campanhas.reduce((s,c)=>s+c[campo],0);
+  return {atualizadoEm:new Date().toISOString(), unidades: demoBase.map(u=>({
+    unidade:u.unidade, erro:null, campanhas:u.campanhas.map(c=>({...c})),
+    leads:somar(u,'leads'), gasto:somar(u,'gasto'), conversas:somar(u,'conversas'), msgs:somar(u,'msgs'),
+  }))};
 }
 
-async function buscar(){
+// A CDN guarda a resposta por 8 s; a atualização manual fura esse cache.
+async function buscar(manual){
   if (DEMO) return buscarDemo();
-  const r = await fetch('/api/leads', {cache:'no-store'});
+  const r = await fetch('/api/leads' + (manual ? '?t=' + Date.now() : ''), {cache:'no-store'});
   const j = await r.json();
   if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status);
   return j;
@@ -118,7 +241,10 @@ function render(d){
   const ok = us.filter(u => u.leads != null);
   const total = ok.reduce((s,u)=>s+u.leads,0);
   const gasto = ok.reduce((s,u)=>s+(u.gasto||0),0);
+  const conversas = ok.reduce((s,u)=>s+(u.conversas||0),0);
+  const msgs = ok.reduce((s,u)=>s+(u.msgs||0),0);
   const max = Math.max(1, ...ok.map(u=>u.leads));
+  campanhas = ok.flatMap(u => (u.campanhas||[]).map(c => ({...c, unidade:u.unidade})));
 
   // virada do dia: zera o histórico
   const hoje = new Date().toDateString();
@@ -127,10 +253,23 @@ function render(d){
   const novos = {};
   if (anterior) for (const u of ok) {
     const diff = u.leads - (anterior[u.unidade] ?? u.leads);
-    if (diff > 0) { novos[u.unidade] = diff; eventos.unshift({unidade:u.unidade, n:diff, t:new Date()}); }
+    if (diff > 0) {
+      novos[u.unidade] = diff;
+      eventos.unshift({unidade:u.unidade, n:diff, t:new Date()});
+      registrar('lead', `+${diff} ${diff>1?'leads':'lead'} em ${u.unidade}`);
+    }
   }
   eventos = eventos.slice(0, 60);
-  if (Object.keys(novos).length && somLigado) beep();
+
+  for (const u of us) {
+    if (u.leads == null && errosAtivos[u.unidade] !== u.erro) {
+      errosAtivos[u.unidade] = u.erro;
+      registrar('erro', `${u.unidade}: ${u.erro}`);
+    } else if (u.leads != null && errosAtivos[u.unidade]) {
+      delete errosAtivos[u.unidade];
+      registrar('info', `${u.unidade} voltou a responder`);
+    }
+  }
 
   const prevTotal = anterior ? Object.values(anterior).reduce((a,b)=>a+b,0) : null;
   $('total').textContent = total.toLocaleString('pt-BR');
@@ -138,16 +277,21 @@ function render(d){
   $('gasto').textContent = brl(gasto);
   $('cpl').textContent = total ? brl(gasto/total) : '–';
   $('unid').textContent = `${ok.length} de ${us.length} unidades respondendo`;
+  $('mpc').textContent = media(msgs, conversas);
+  $('conv').textContent = `${conversas.toLocaleString('pt-BR')} conversas iniciadas`;
+  $('ncamp').textContent = campanhas.length.toLocaleString('pt-BR');
 
   const ordenadas = [...us].sort((a,b)=>(b.leads??-1)-(a.leads??-1));
   $('grid').innerHTML = ordenadas.map((u,i) => {
-    if (u.leads == null) return `<div class="card err"><div class="nm">${u.unidade}</div><div class="n">Erro</div><div class="meta"><span title="${(u.erro||'').replace(/"/g,'&quot;')}">${(u.erro||'').slice(0,60)}</span></div></div>`;
+    if (u.leads == null) return `<div class="card err"><div class="nm">${esc(u.unidade)}</div><div class="n">Erro</div><div class="meta"><span title="${esc(u.erro)}">${esc((u.erro||'').slice(0,40))}</span></div></div>`;
     const cpl = u.leads ? brl(u.gasto/u.leads) : '–';
-    return `<div class="card ${novos[u.unidade]?'flash':''} ${i===0?'lead1':''}" data-u="${u.unidade}">
+    const nCamp = (u.campanhas||[]).length;
+    return `<div class="card ${novos[u.unidade]?'flash':''} ${i===0?'lead1':''}" data-u="${esc(u.unidade)}">
       <div class="rank">${i===0?'★ ':''}#${i+1}</div>
-      <div class="nm">${u.unidade}</div>
+      <div class="nm">${esc(u.unidade)}</div>
       <div class="n">${u.leads}</div>
       <div class="meta"><span>${brl(u.gasto)}</span><span>CPL ${cpl}</span></div>
+      <div class="meta"><span>${media(u.msgs, u.conversas)} msgs/conv</span><span>${nCamp} ${nCamp===1?'camp.':'camps.'}</span></div>
       <div class="bar"><i style="width:${(u.leads/max*100).toFixed(1)}%"></i></div>
       ${novos[u.unidade]?`<span class="plus">+${novos[u.unidade]}</span>`:''}
     </div>`;
@@ -155,29 +299,59 @@ function render(d){
   setTimeout(()=>document.querySelectorAll('.card.flash').forEach(c=>c.classList.remove('flash')), 2500);
 
   $('feed').innerHTML = eventos.length
-    ? eventos.map(e=>`<div class="ev"><span><b>+${e.n}</b> ${e.n>1?'leads':'lead'} · ${e.unidade}</span><time>${hora(e.t)}</time></div>`).join('')
+    ? eventos.map(e=>`<div class="ev"><span><b>+${e.n}</b> ${e.n>1?'leads':'lead'} · ${esc(e.unidade)}</span><time>${hora(e.t)}</time></div>`).join('')
     : '<div class="empty">Aguardando novos leads…</div>';
 
+  renderCampanhas();
   anterior = Object.fromEntries(ok.map(u=>[u.unidade,u.leads]));
 }
 
-async function ciclo(){
+function renderCampanhas(){
+  const q = $('busca').value.trim().toLowerCase();
+  const linhas = campanhas
+    .filter(c => !q || `${c.nome} ${c.unidade}`.toLowerCase().includes(q))
+    .sort((a,b) => b.conversas - a.conversas || b.gasto - a.gasto);
+  $('campInfo').textContent = `${linhas.length} de ${campanhas.length} campanhas · msgs/conversa é uma estimativa mínima`;
+  $('campLinhas').innerHTML = linhas.length
+    ? linhas.map(c => `<tr>
+        <td class="esq nome">${esc(c.nome)}</td><td class="esq">${esc(c.unidade)}</td>
+        <td class="forte">${c.conversas}</td><td>${media(c.msgs, c.conversas)}</td>
+        <td>${c.m2}</td><td>${c.m3}</td><td>${c.m5}</td>
+        <td>${c.leads}</td><td>${brl(c.gasto)}</td><td>${c.leads ? brl(c.gasto/c.leads) : '–'}</td>
+      </tr>`).join('')
+    : '<tr><td class="esq" colspan="10"><div class="empty">Nenhuma campanha encontrada.</div></td></tr>';
+}
+$('busca').oninput = renderCampanhas;
+
+async function ciclo(manual){
+  if (buscando) return;
+  buscando = true;
+  clearTimeout(timer);
+  $('atualizar').disabled = true;
+  const inicio = performance.now();
   try {
-    const d = await buscar();
+    const d = await buscar(manual);
     render(d);
     ultimoOk = new Date();
+    const ms = Math.round(performance.now() - inicio);
+    const nOk = d.unidades.filter(u => u.leads != null).length;
+    registrar(manual ? 'manual' : 'ok', `${nOk} de ${d.unidades.length} unidades · ${campanhas.length} campanhas · ${ms} ms`);
     $('dot').classList.remove('off');
     $('status').textContent = `Ao vivo · atualizado às ${hora(ultimoOk)}`;
     $('banner').style.display = DEMO ? 'block' : 'none';
   } catch (e) {
+    registrar('erro', 'Falha na atualização: ' + e.message);
     $('dot').classList.add('off');
     $('status').textContent = ultimoOk ? `Sem conexão · último dado às ${hora(ultimoOk)}` : 'Sem conexão';
     $('banner').className = 'banner'; $('banner').style.display='block';
     $('banner').textContent = 'Erro ao buscar dados: ' + e.message;
   } finally {
-    setTimeout(ciclo, INTERVALO);
+    buscando = false;
+    $('atualizar').disabled = false;
+    timer = setTimeout(ciclo, INTERVALO);
   }
 }
+$('atualizar').onclick = () => ciclo(true);
 if (DEMO) { $('banner').className='banner demo'; $('banner').textContent='Modo demonstração: números fictícios.'; }
 ciclo();
 </script>
