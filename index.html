@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Leads ao vivo</title>
+<title>BLACK BE - Leads</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -66,9 +66,13 @@
   .ord:hover{color:var(--txt)}
   th[aria-sort] .ord{color:var(--acc)}
   .tabela{background:var(--card);border:1px solid var(--line);border-radius:9px;overflow:auto;max-height:min(calc(100vh - 110px),620px)}
-  #aba-campanhas .tabela{max-height:none;overflow:visible}
-  #campCab th:first-child{border-top-left-radius:8px}
-  #campCab th:last-child{border-top-right-radius:8px}
+  .tabela.aberta{max-height:none;overflow:visible}
+  .aberta th:first-child{border-top-left-radius:8px}
+  .aberta th:last-child{border-top-right-radius:8px}
+  .secao{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.6px;margin:14px 0 6px;font-weight:600}
+  .medidor{position:relative;height:4px;background:var(--card2);border-radius:3px;margin-top:4px;min-width:90px}
+  .medidor i{display:block;height:100%;background:var(--acc2);border-radius:3px}
+  .medidor b{position:absolute;top:-2px;width:2px;height:8px;background:var(--txt)}
   table{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
   thead{position:sticky;top:0;z-index:1}
   th{background:var(--card2);color:var(--mut);font-size:11px;font-weight:600;text-align:right;padding:7px 10px;white-space:nowrap}
@@ -81,7 +85,7 @@
   td.msg{text-align:left;white-space:normal;min-width:260px;width:100%}
   @media (max-width:1000px){.top{grid-template-columns:repeat(2,1fr)}.kpi.main{grid-column:1/-1}.main-grid{grid-template-columns:1fr}.feed{max-height:none}}
   @media (max-width:1000px){.wrap{width:auto;padding:12px 16px 20px}}
-  @media (max-width:660px){#aba-campanhas .tabela{overflow-x:auto}}
+  @media (max-width:860px){.tabela.aberta{overflow-x:auto}}
   @media (max-width:640px){.grid{grid-template-columns:repeat(2,1fr)}header{align-items:flex-start}}
 </style>
 </head>
@@ -96,6 +100,7 @@
       <nav class="tabs" id="tabs" role="tablist">
         <button role="tab" data-aba="painel">Painel</button>
         <button role="tab" data-aba="campanhas">Campanhas</button>
+        <button role="tab" data-aba="estrategia">Estratégia</button>
         <button role="tab" data-aba="logs">Logs</button>
       </nav>
       <button id="atualizar" title="Buscar os dados agora">↻ Atualizar</button>
@@ -122,9 +127,25 @@
     <div class="bar-acoes">
       <span class="info" id="campInfo"></span>
     </div>
-    <div class="tabela"><table>
+    <div class="tabela aberta"><table>
       <thead id="campCab"></thead>
       <tbody id="campLinhas"></tbody>
+    </table></div>
+  </main>
+
+  <main id="aba-estrategia" hidden>
+    <div class="bar-acoes">
+      <span class="info" id="estInfo"></span>
+    </div>
+    <h2 class="secao">Orçamento, alcance e frequência por unidade</h2>
+    <div class="tabela aberta"><table>
+      <thead id="uniCab"></thead>
+      <tbody id="uniLinhas"></tbody>
+    </table></div>
+    <h2 class="secao">Por anúncio · hoje</h2>
+    <div class="tabela aberta"><table>
+      <thead id="adCab"></thead>
+      <tbody id="adLinhas"></tbody>
     </table></div>
   </main>
 
@@ -168,9 +189,11 @@ let buscando = false;
 let timer = null;
 
 // ---- abas ----
-const ABAS = ['painel','campanhas','logs'];
+const ABAS = ['painel','campanhas','estrategia','logs'];
+let abaAtual = 'painel';
 function abrirAba(nome){
   const aba = ABAS.includes(nome) ? nome : 'painel';
+  abaAtual = aba;
   ABAS.forEach(a => $('aba-'+a).hidden = a !== aba);
   document.querySelectorAll('#tabs button').forEach(b => {
     b.classList.toggle('on', b.dataset.aba === aba);
@@ -178,7 +201,7 @@ function abrirAba(nome){
   });
 }
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { location.hash = b.dataset.aba; });
-addEventListener('hashchange', () => abrirAba(location.hash.slice(1)));
+addEventListener('hashchange', () => { abrirAba(location.hash.slice(1)); carregarEstrategia(); });
 abrirAba(location.hash.slice(1));
 
 // ---- logs ----
@@ -310,52 +333,152 @@ function render(d){
   anterior = Object.fromEntries(ok.map(u=>[u.unidade,u.leads]));
 }
 
-// ---- aba Campanhas: só campanhas ativas com a tag abaixo, ordenadas pelo título da coluna ----
+// ---- tabelas ordenadas pelo título da coluna ----
+function tabelaOrdenavel(idCab, idCorpo, colunas, inicial, vazio, celulas){
+  let ordem = inicial, dados = [];
+  $(idCab).innerHTML = `<tr>${colunas.map(c => `<th class="${c.txt?'esq':''}" data-k="${c.k}"><button class="ord" title="${c.dica || 'Ordenar'}">${c.t}<span class="seta"></span></button></th>`).join('')}</tr>`;
+
+  function comparar(a, b){
+    const x = a[ordem.k], y = b[ordem.k];
+    if (x == null || y == null) return (x == null) - (y == null);   // sem valor fica sempre no fim
+    return ordem.dir * (typeof x === 'string' ? x.localeCompare(y, 'pt-BR') : x - y);
+  }
+  function desenhar(){
+    document.querySelectorAll(`#${idCab} th[data-k]`).forEach(th => {
+      const ativa = th.dataset.k === ordem.k;
+      if (ativa) th.setAttribute('aria-sort', ordem.dir > 0 ? 'ascending' : 'descending'); else th.removeAttribute('aria-sort');
+      th.querySelector('.seta').textContent = ativa ? (ordem.dir > 0 ? ' ▲' : ' ▼') : '';
+    });
+    $(idCorpo).innerHTML = dados.length
+      ? [...dados].sort(comparar).map(l => `<tr>${celulas(l)}</tr>`).join('')
+      : `<tr><td class="esq" colspan="${colunas.length}"><div class="empty">${vazio}</div></td></tr>`;
+  }
+  $(idCab).onclick = e => {
+    const th = e.target.closest('.ord')?.closest('th');
+    if (!th) return;
+    const k = th.dataset.k;
+    ordem = ordem.k === k ? {k, dir:-ordem.dir} : {k, dir:colunas.find(c => c.k === k).txt ? 1 : -1};
+    desenhar();
+  };
+  return novos => { dados = novos; desenhar(); };
+}
+
+// ---- aba Campanhas: só campanhas ativas com a tag abaixo ----
 const TAG_CAMPANHA = '[MENSAGENS]';
-const COLUNAS = [
+const mostrarCampanhas = tabelaOrdenavel('campCab', 'campLinhas', [
   {k:'nome', t:'Campanha', txt:true},
   {k:'unidade', t:'Unidade', txt:true},
   {k:'conversas', t:'Conversas'},
   {k:'m3', t:'3+ msgs', dica:'Conversas com 3 ou mais mensagens do cliente'},
   {k:'gasto', t:'Investimento'},
   {k:'cpl', t:'CPL'},
-];
-let ordem = {k:'conversas', dir:-1};
+], {k:'conversas', dir:-1}, 'Nenhuma campanha encontrada.', c => `
+  <td class="esq nome">${esc(c.nome)}</td><td class="esq">${esc(c.unidade)}</td>
+  <td class="forte">${c.conversas}</td><td>${c.m3}</td>
+  <td>${brl(c.gasto)}</td><td>${brl(c.cpl)}</td>`);
 
-$('campCab').innerHTML = `<tr>${COLUNAS.map(c => `<th class="${c.txt?'esq':''}" data-k="${c.k}"><button class="ord" title="${c.dica || 'Ordenar'}">${c.t}<span class="seta"></span></button></th>`).join('')}</tr>`;
-
-function comparar(a, b){
-  const x = a[ordem.k], y = b[ordem.k];
-  if (x == null || y == null) return (x == null) - (y == null);   // sem valor fica sempre no fim
-  return ordem.dir * (typeof x === 'string' ? x.localeCompare(y, 'pt-BR') : x - y);
-}
 function renderCampanhas(){
   const linhas = campanhas
     .filter(c => c.ativa !== false && c.nome.toUpperCase().includes(TAG_CAMPANHA))
-    .map(c => ({...c, cpl: razao(c.gasto, c.leads)}))
-    .sort(comparar);
-
-  document.querySelectorAll('#campCab th[data-k]').forEach(th => {
-    const ativa = th.dataset.k === ordem.k;
-    if (ativa) th.setAttribute('aria-sort', ordem.dir > 0 ? 'ascending' : 'descending'); else th.removeAttribute('aria-sort');
-    th.querySelector('.seta').textContent = ativa ? (ordem.dir > 0 ? ' ▲' : ' ▼') : '';
-  });
+    .map(c => ({...c, cpl: razao(c.gasto, c.leads)}));
   $('campInfo').textContent = linhas.length === 1 ? '1 campanha ativa' : `${linhas.length} campanhas ativas`;
-  $('campLinhas').innerHTML = linhas.length
-    ? linhas.map(c => `<tr>
-        <td class="esq nome">${esc(c.nome)}</td><td class="esq">${esc(c.unidade)}</td>
-        <td class="forte">${c.conversas}</td><td>${c.m3}</td>
-        <td>${brl(c.gasto)}</td><td>${brl(c.cpl)}</td>
-      </tr>`).join('')
-    : `<tr><td class="esq" colspan="${COLUNAS.length}"><div class="empty">Nenhuma campanha encontrada.</div></td></tr>`;
+  mostrarCampanhas(linhas);
 }
-$('campCab').onclick = e => {
-  const th = e.target.closest('.ord')?.closest('th');
-  if (!th) return;
-  const k = th.dataset.k;
-  ordem = ordem.k === k ? {k, dir:-ordem.dir} : {k, dir:COLUNAS.find(c => c.k === k).txt ? 1 : -1};
-  renderCampanhas();
-};
+
+// ---- aba Estratégia: consulta mais pesada, só roda com a aba aberta ----
+const INTERVALO_ESTRATEGIA = 120000;
+const inteiro = v => v == null ? '–' : v.toLocaleString('pt-BR');
+const freq = v => v == null ? '–' : v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fracaoDoDia = () => { const a = new Date(); return (a.getHours() + a.getMinutes()/60) / 24; };
+let fracaoDia = fracaoDoDia();
+let estCarregada = false;
+let buscandoEst = false;
+const errosEst = new Set();
+
+const medidor = v => v == null ? '' : `<div class="medidor"><i style="width:${Math.min(v*100,100).toFixed(1)}%"></i><b style="left:${(fracaoDia*100).toFixed(1)}%" title="Parte do dia que já passou"></b></div>`;
+
+const mostrarUnidades = tabelaOrdenavel('uniCab', 'uniLinhas', [
+  {k:'unidade', t:'Unidade', txt:true},
+  {k:'orcamento', t:'Orçamento diário', dica:'Soma do orçamento diário das campanhas ativas'},
+  {k:'consumido', t:'Consumido'},
+  {k:'pct', t:'% consumido', dica:'A marca branca mostra quanto do dia já passou'},
+  {k:'alcanceHoje', t:'Alcance hoje'},
+  {k:'freqHoje', t:'Freq. hoje'},
+  {k:'alcance7d', t:'Alcance 7 dias'},
+  {k:'freq7d', t:'Freq. 7 dias'},
+], {k:'pct', dir:-1}, 'Nenhuma unidade encontrada.', u => `
+  <td class="esq">${esc(u.unidade)}</td><td>${brl(u.orcamento)}</td><td>${brl(u.consumido)}</td>
+  <td class="forte">${pct(u.pct)}${medidor(u.pct)}</td>
+  <td>${inteiro(u.alcanceHoje)}</td><td>${freq(u.freqHoje)}</td>
+  <td>${inteiro(u.alcance7d)}</td><td>${freq(u.freq7d)}</td>`);
+
+const mostrarAnuncios = tabelaOrdenavel('adCab', 'adLinhas', [
+  {k:'nome', t:'Anúncio', txt:true},
+  {k:'unidade', t:'Unidade', txt:true},
+  {k:'conversas', t:'Conversas'},
+  {k:'m3', t:'3+ msgs'},
+  {k:'gasto', t:'Investimento'},
+  {k:'ctr', t:'CTR'},
+  {k:'custo', t:'Custo/conversa'},
+], {k:'conversas', dir:-1}, 'Nenhum anúncio ativo com entrega hoje.', a => `
+  <td class="esq nome" title="${esc(a.campanha)}">${esc(a.nome)}</td><td class="esq">${esc(a.unidade)}</td>
+  <td class="forte">${a.conversas}</td><td>${a.m3}</td><td>${brl(a.gasto)}</td>
+  <td>${a.ctr == null ? '–' : freq(a.ctr) + '%'}</td><td>${brl(a.custo)}</td>`);
+
+function demoEstrategia(){
+  const unidades = demoBase.map(u => {
+    const orcamento = 200 + Math.floor(Math.random()*7)*50, alcanceHoje = 2000 + Math.floor(Math.random()*9000);
+    return {unidade:u.unidade, orcamento, consumido:orcamento*Math.random()*.9, semDiario:0, alcanceHoje,
+      freqHoje:1 + Math.random()*.4, alcance7d:alcanceHoje*4, freq7d:1.5 + Math.random()*2, erro:null};
+  });
+  const anuncios = demoBase.flatMap(u => u.campanhas.filter(c => c.ativa && c.nome.includes(TAG_CAMPANHA)).map(c => ({
+    id:u.unidade+c.id, nome:`Criativo ${c.id} · ${u.unidade}`, unidade:u.unidade, campanha:c.nome,
+    gasto:c.gasto, impressoes:Math.floor(c.gasto*90), ctr:.6 + Math.random()*2, conversas:c.conversas, m3:c.m3,
+  })));
+  return {unidades, anuncios};
+}
+
+async function buscarEstrategia(manual){
+  if (DEMO) return demoEstrategia();
+  const r = await fetch('/api/estrategia' + (manual ? '?t=' + Date.now() : ''), {cache:'no-store'});
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status);
+  return j;
+}
+
+function renderEstrategia(d){
+  fracaoDia = fracaoDoDia();
+  const somar = campo => d.unidades.reduce((s,u)=>s+(u[campo]||0),0);
+  const orcamento = somar('orcamento'), consumido = somar('consumido'), semDiario = somar('semDiario');
+  const partes = [
+    `Orçamento do dia ${brl(orcamento)}`,
+    `consumido ${brl(consumido)} (${pct(razao(consumido, orcamento))})`,
+    `${pct(fracaoDia)} do dia já passou`,
+  ];
+  if (semDiario) partes.push(`${semDiario} ${semDiario===1?'campanha':'campanhas'} sem orçamento diário fora da conta`);
+  $('estInfo').textContent = partes.join(' · ');
+  mostrarUnidades(d.unidades.map(u => ({...u, pct:razao(u.consumido, u.orcamento)})));
+  mostrarAnuncios(d.anuncios.map(a => ({...a, custo:razao(a.gasto, a.conversas)})));
+  for (const u of d.unidades) {
+    const texto = u.erro && `Estratégia · ${u.unidade}: ${u.erro}`;
+    if (texto && !errosEst.has(texto)) { errosEst.add(texto); registrar('erro', texto); }
+  }
+}
+
+async function carregarEstrategia(manual){
+  if (abaAtual !== 'estrategia' || buscandoEst) return;
+  buscandoEst = true;
+  if (!estCarregada) $('estInfo').textContent = 'Carregando…';
+  try {
+    renderEstrategia(await buscarEstrategia(manual));
+    estCarregada = true;
+  } catch (e) {
+    registrar('erro', 'Falha na aba Estratégia: ' + e.message);
+    $('estInfo').textContent = 'Erro ao buscar dados: ' + e.message;
+  } finally {
+    buscandoEst = false;
+  }
+}
 
 async function ciclo(manual){
   if (buscando) return;
@@ -385,9 +508,11 @@ async function ciclo(manual){
     timer = setTimeout(ciclo, INTERVALO);
   }
 }
-$('atualizar').onclick = () => ciclo(true);
+$('atualizar').onclick = () => { ciclo(true); carregarEstrategia(true); };
 if (DEMO) { $('banner').className='banner demo'; $('banner').textContent='Modo demonstração: números fictícios.'; }
 ciclo();
+carregarEstrategia();
+setInterval(carregarEstrategia, INTERVALO_ESTRATEGIA);
 </script>
 </body>
 </html>

@@ -1,0 +1,5 @@
+{
+  "functions": {
+    "api/estrategia.js": { "maxDuration": 30 }
+  }
+}
