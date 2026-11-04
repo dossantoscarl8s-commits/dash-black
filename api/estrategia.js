@@ -18,7 +18,7 @@ const consultasDaConta = id => [
   `${id}/insights?level=account&date_preset=today&fields=${campos('reach,frequency')}`,
   `${id}/insights?level=account&date_preset=last_7d&fields=${campos('reach,frequency')}`,
   `${id}/campaigns?effective_status=${ATIVAS}&limit=500&fields=${campos('id,name,daily_budget,insights.date_preset(today){spend}')}`,
-  `${id}/adsets?effective_status=${ATIVAS}&limit=500&fields=${campos('campaign_id,daily_budget')}`,
+  `${id}/adsets?effective_status=${ATIVAS}&limit=500&fields=${campos('campaign_id,daily_budget,start_time,end_time')}`,
   `${id}/ads?effective_status=${ATIVAS}&limit=300&fields=${campos('id,name,campaign_id,insights.date_preset(today){spend,impressions,ctr,actions}')}`,
 ];
 
@@ -30,21 +30,29 @@ function valorAcao(actions, tipo) {
 
 const numero = v => (v != null ? Number(v) : null);
 
-// Soma o orçamento diário das campanhas ativas e o gasto delas hoje. O orçamento pode estar na
-// campanha ou nos conjuntos; a Meta devolve em centavos. Quem não tem orçamento diário fica de fora.
-function resumirOrcamento(campanhas, conjuntos) {
+// Conjunto ativo na Meta pode estar agendado ou já encerrado: vale só o que está no período hoje.
+function noPeriodo(conjunto, agora) {
+  const inicio = Date.parse(conjunto.start_time);
+  const fim = Date.parse(conjunto.end_time);
+  return !(inicio > agora) && !(fim < agora);
+}
+
+// Soma o orçamento diário do que está no período e o gasto dessas campanhas hoje. O orçamento pode
+// estar na campanha ou nos conjuntos; a Meta devolve em centavos.
+function resumirOrcamento(campanhas, conjuntos, agora = Date.now()) {
   let orcamento = 0, consumido = 0, semDiario = 0;
+  const vigentes = conjuntos.filter(s => noPeriodo(s, agora));
   for (const c of campanhas) {
+    const daCampanha = vigentes.filter(s => s.campaign_id === c.id);
+    if (!daCampanha.length) continue;
     const naCampanha = Number(c.daily_budget) || 0;
-    const nosConjuntos = conjuntos
-      .filter(s => s.campaign_id === c.id)
-      .reduce((s, x) => s + (Number(x.daily_budget) || 0), 0);
+    const nosConjuntos = daCampanha.reduce((s, x) => s + (Number(x.daily_budget) || 0), 0);
     const diario = naCampanha || nosConjuntos;
     if (!diario) { semDiario += 1; continue; }
     orcamento += diario / 100;
     consumido += Number(c.insights?.data?.[0]?.spend) || 0;
   }
-  return { orcamento, consumido, semDiario };
+  return { orcamento, consumido, semDiario, foraDoPeriodo: conjuntos.length - vigentes.length };
 }
 
 function resumirAnuncio(ad, unidade, campanha) {
@@ -120,7 +128,7 @@ module.exports = async (req, res) => {
 
       const orcamento = campanhas.data && conjuntos.data
         ? resumirOrcamento(campanhas.data, conjuntos.data)
-        : { orcamento: null, consumido: null, semDiario: null };
+        : { orcamento: null, consumido: null, semDiario: null, foraDoPeriodo: null };
 
       return {
         unidade: c.unidade,
