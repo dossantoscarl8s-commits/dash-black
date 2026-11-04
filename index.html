@@ -30,7 +30,7 @@
   .tabs{display:flex;gap:2px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:2px}
   .tabs button{background:none;border-color:transparent;border-radius:6px;color:var(--mut)}
   .tabs button.on{background:var(--card2);color:var(--txt)}
-  .top{display:grid;grid-template-columns:1.2fr repeat(4,1fr);gap:8px;padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid #3a3a40}
+  .top{display:grid;grid-template-columns:1.2fr repeat(3,1fr);gap:8px;padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid #3a3a40}
   .kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 13px;min-width:0}
   .kpi .l{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.6px;font-weight:600}
   .kpi .v{font-size:24px;font-weight:800;margin-top:2px;font-variant-numeric:tabular-nums;line-height:1.15}
@@ -83,7 +83,7 @@
   td.msg{text-align:left;white-space:normal;min-width:260px;width:100%}
   @media (max-width:1000px){.top{grid-template-columns:repeat(2,1fr)}.kpi.main{grid-column:1/-1}.main-grid{grid-template-columns:1fr}.feed{max-height:none}}
   @media (max-width:1000px){.wrap{width:auto;padding:12px 16px 20px}}
-  @media (max-width:860px){#aba-campanhas .tabela{overflow-x:auto}}
+  @media (max-width:660px){#aba-campanhas .tabela{overflow-x:auto}}
   @media (max-width:640px){.grid{grid-template-columns:repeat(2,1fr)}header{align-items:flex-start}}
 </style>
 </head>
@@ -112,7 +112,6 @@
       <div class="kpi"><div class="l">Investimento</div><div class="v" id="gasto">–</div><div class="s" id="unid">&nbsp;</div></div>
       <div class="kpi"><div class="l">Custo por lead</div><div class="v" id="cpl">–</div><div class="s">média das unidades</div></div>
       <div class="kpi" title="Conversas com 3 ou mais mensagens do cliente ÷ conversas iniciadas."><div class="l">Qualificação</div><div class="v" id="taxa">–</div><div class="s" id="conv">&nbsp;</div></div>
-      <div class="kpi" title="Investimento ÷ conversas com 3 ou mais mensagens do cliente."><div class="l">Custo por 3+ msgs</div><div class="v" id="custo">–</div><div class="s" id="ncamp">&nbsp;</div></div>
     </section>
 
     <div class="main-grid">
@@ -295,11 +294,9 @@ function render(d){
   if (prevTotal != null && total > prevTotal) $('totalS').textContent = `+${total-prevTotal} na última atualização`;
   $('gasto').textContent = brl(gasto);
   $('cpl').textContent = total ? brl(gasto/total) : '–';
-  $('unid').textContent = `${ok.length} de ${us.length} unidades`;
+  $('unid').textContent = `${ok.length} de ${us.length} unidades · ${campanhas.length} campanhas`;
   $('taxa').textContent = pct(razao(m3, conversas));
-  $('conv').textContent = `${m3.toLocaleString('pt-BR')} de ${conversas.toLocaleString('pt-BR')} conversas`;
-  $('custo').textContent = brl(razao(gasto, m3));
-  $('ncamp').textContent = `${campanhas.length} camp. · ${bloqueios} ${bloqueios===1?'bloqueio':'bloqueios'}`;
+  $('conv').textContent = `${m3.toLocaleString('pt-BR')} de ${conversas.toLocaleString('pt-BR')} conversas · ${bloqueios} ${bloqueios===1?'bloqueio':'bloqueios'}`;
 
   const ordenadas = [...us].sort((a,b)=>(b.leads??-1)-(a.leads??-1));
   $('grid').innerHTML = ordenadas.map((u,i) => {
@@ -311,7 +308,7 @@ function render(d){
       <div class="nm">${esc(u.unidade)}</div>
       <div class="n">${u.leads}</div>
       <div class="meta"><span>${brl(u.gasto)}</span><span class="${classeCpl(u.gasto, u.leads, mediaCpl)}">CPL ${cpl}</span></div>
-      <div class="meta"><span>3+: ${u.m3||0} · ${pct(razao(u.m3||0, u.conversas))}</span><span>${nCamp} ${nCamp===1?'camp.':'camps.'}</span></div>
+      <div class="meta"><span>${nCamp} ${nCamp===1?'campanha':'campanhas'}</span></div>
       <div class="bar"><i style="width:${(u.leads/max*100).toFixed(1)}%"></i></div>
       ${novos[u.unidade]?`<span class="plus">+${novos[u.unidade]}</span>`:''}
     </div>`;
@@ -333,9 +330,6 @@ const COLUNAS = [
   {k:'unidade', t:'Unidade', txt:true},
   {k:'conversas', t:'Conversas'},
   {k:'m3', t:'3+ msgs', dica:'Conversas com 3 ou mais mensagens do cliente'},
-  {k:'taxa', t:'Qualificação', dica:'3+ msgs ÷ conversas'},
-  {k:'custo', t:'Custo 3+', dica:'Investimento ÷ 3+ msgs'},
-  {k:'leads', t:'Leads'},
   {k:'gasto', t:'Investimento'},
   {k:'cpl', t:'CPL'},
 ];
@@ -351,7 +345,7 @@ function comparar(a, b){
 function renderCampanhas(){
   const linhas = campanhas
     .filter(c => c.ativa !== false && c.nome.toUpperCase().includes(TAG_CAMPANHA))
-    .map(c => ({...c, taxa: razao(c.m3, c.conversas), custo: razao(c.gasto, c.m3), cpl: razao(c.gasto, c.leads)}))
+    .map(c => ({...c, cpl: razao(c.gasto, c.leads)}))
     .sort(comparar);
 
   document.querySelectorAll('#campCab th[data-k]').forEach(th => {
@@ -363,8 +357,8 @@ function renderCampanhas(){
   $('campLinhas').innerHTML = linhas.length
     ? linhas.map(c => `<tr>
         <td class="esq nome">${esc(c.nome)}</td><td class="esq">${esc(c.unidade)}</td>
-        <td class="forte">${c.conversas}</td><td>${c.m3}</td><td>${pct(c.taxa)}</td><td>${brl(c.custo)}</td>
-        <td>${c.leads}</td><td>${brl(c.gasto)}</td><td class="${classeCpl(c.gasto, c.leads, mediaCpl)}">${brl(c.cpl)}</td>
+        <td class="forte">${c.conversas}</td><td>${c.m3}</td>
+        <td>${brl(c.gasto)}</td><td>${brl(c.cpl)}</td>
       </tr>`).join('')
     : `<tr><td class="esq" colspan="${COLUNAS.length}"><div class="empty">Nenhuma campanha encontrada.</div></td></tr>`;
 }
