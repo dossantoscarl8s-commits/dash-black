@@ -14,7 +14,7 @@
   *{box-sizing:border-box}
   [hidden]{display:none!important}
   body{margin:0;background:var(--bg);color:var(--txt);font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
-  .wrap{max-width:1120px;margin:0 auto;padding:12px 16px 20px}
+  .wrap{width:min(84%,1120px);margin:0 auto;padding:12px 0 20px}
   header{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;justify-content:space-between;margin-bottom:10px}
   .tit{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 14px}
   h1{font-size:16px;font-weight:700;margin:0;letter-spacing:.2px}
@@ -26,7 +26,7 @@
   button{background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:5px 10px;font:500 12px Inter,sans-serif;cursor:pointer}
   button:hover{border-color:#3a3a40}
   button:disabled{opacity:.55;cursor:default}
-  button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+  button:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
   .tabs{display:flex;gap:2px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:2px}
   .tabs button{background:none;border-color:transparent;border-radius:6px;color:var(--mut)}
   .tabs button.on{background:var(--card2);color:var(--txt)}
@@ -62,13 +62,9 @@
   .bar-acoes .info{font-size:12px;color:var(--mut)}
   .filtros{display:flex;flex-wrap:wrap;gap:6px}
   .filtros button.on{border-color:var(--acc);color:var(--acc)}
-  input{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:3px 6px;font:400 11px Inter,sans-serif;width:100%;min-width:50px}
-  th.esq input{min-width:90px}
-  th input{text-align:left}
   .ord{background:none;border:0;padding:0;font:inherit;color:inherit;border-radius:3px}
   .ord:hover{color:var(--txt)}
   th[aria-sort] .ord{color:var(--acc)}
-  .linha-fil th{padding-top:0}
   .tabela{background:var(--card);border:1px solid var(--line);border-radius:9px;overflow:auto;max-height:min(calc(100vh - 110px),620px)}
   table{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
   thead{position:sticky;top:0;z-index:1}
@@ -81,6 +77,7 @@
   .tag.lead{color:var(--acc)} .tag.erro{color:var(--err)} .tag.manual,.tag.info{color:var(--txt)}
   td.msg{text-align:left;white-space:normal;min-width:260px;width:100%}
   @media (max-width:1000px){.top{grid-template-columns:repeat(2,1fr)}.kpi.main{grid-column:1/-1}.main-grid{grid-template-columns:1fr}.feed{max-height:none}}
+  @media (max-width:760px){.wrap{width:auto;padding:12px 16px 20px}}
   @media (max-width:640px){.grid{grid-template-columns:repeat(2,1fr)}header{align-items:flex-start}}
 </style>
 </head>
@@ -121,7 +118,6 @@
   <main id="aba-campanhas" hidden>
     <div class="bar-acoes">
       <span class="info" id="campInfo"></span>
-      <button id="limparFiltros">Limpar filtros</button>
     </div>
     <div class="tabela"><table>
       <thead id="campCab"></thead>
@@ -215,7 +211,7 @@ renderLogs();
 // ---- modo demonstração (?demo) ----
 const demoCampanha = i => {
   const conversas = Math.floor(Math.random()*14), m2 = Math.floor(conversas*.6), m3 = Math.floor(m2*.6), m5 = Math.floor(m3*.5);
-  return {id:String(i), nome:`${i===2?'[TRÁFEGO]':'[MENSAGENS]'} Público ${String.fromCharCode(65+i)}`, leads:conversas, conversas, m2, m3, m5, msgs:conversas+m2+m3+2*m5, gasto:Math.random()*220+40};
+  return {id:String(i), nome:`${i===2?'[TRÁFEGO]':'[MENSAGENS]'} Público ${String.fromCharCode(65+i)}`, ativa:i!==3, leads:conversas, conversas, m2, m3, m5, msgs:conversas+m2+m3+2*m5, gasto:Math.random()*220+40};
 };
 const demoBase = ['F. SANTANA','FORTALEZA','MOSSORO','TERESINA','SALVADOR','CAMPINA GRANDE','CARUARU','JOAO PESSOA','NATAL','RECIFE','RIBEIRAO PRETO','BRASILIA','PRAIA GRANDE','CAMPINAS','DOURADOS','MACEIO','PATOS']
   .map(u => ({unidade:u, campanhas:Array.from({length:1+Math.floor(Math.random()*4)}, (_,i)=>demoCampanha(i))}));
@@ -265,10 +261,11 @@ function render(d){
   eventos = eventos.slice(0, 60);
 
   for (const u of us) {
-    if (u.leads == null && errosAtivos[u.unidade] !== u.erro) {
-      errosAtivos[u.unidade] = u.erro;
-      registrar('erro', `${u.unidade}: ${u.erro}`);
-    } else if (u.leads != null && errosAtivos[u.unidade]) {
+    const erro = u.erro || u.erroStatus;
+    if (erro && errosAtivos[u.unidade] !== erro) {
+      errosAtivos[u.unidade] = erro;
+      registrar('erro', `${u.unidade}: ${erro}`);
+    } else if (!erro && errosAtivos[u.unidade]) {
       delete errosAtivos[u.unidade];
       registrar('info', `${u.unidade} voltou a responder`);
     }
@@ -279,7 +276,7 @@ function render(d){
   if (prevTotal != null && total > prevTotal) $('totalS').textContent = `+${total-prevTotal} na última atualização`;
   $('gasto').textContent = brl(gasto);
   $('cpl').textContent = total ? brl(gasto/total) : '–';
-  $('unid').textContent = `${ok.length} de ${us.length} unidades respondendo`;
+  $('unid').textContent = `${ok.length} de ${us.length} unidades`;
   $('mpc').textContent = media(msgs, conversas);
   $('conv').textContent = `${conversas.toLocaleString('pt-BR')} conversas iniciadas`;
   $('ncamp').textContent = campanhas.length.toLocaleString('pt-BR');
@@ -309,7 +306,7 @@ function render(d){
   anterior = Object.fromEntries(ok.map(u=>[u.unidade,u.leads]));
 }
 
-// ---- aba Campanhas: só a tag abaixo, com ordenação e filtro em cada coluna ----
+// ---- aba Campanhas: só campanhas ativas com a tag abaixo, ordenadas pelo título da coluna ----
 const TAG_CAMPANHA = '[MENSAGENS]';
 const COLUNAS = [
   {k:'nome', t:'Campanha', txt:true},
@@ -324,34 +321,25 @@ const COLUNAS = [
 ];
 let ordem = {k:'conversas', dir:-1};
 
-$('campCab').innerHTML = `<tr>${COLUNAS.map(c => `<th class="${c.txt?'esq':''}" data-k="${c.k}"><button class="ord" title="${c.dica || 'Ordenar'}">${c.t}<span class="seta"></span></button></th>`).join('')}</tr>
-  <tr class="linha-fil">${COLUNAS.map(c => `<th class="${c.txt?'esq':''}"><input data-k="${c.k}" ${c.txt?'':'inputmode="decimal"'} placeholder="${c.txt?'Filtrar':'mín.'}" aria-label="Filtrar ${c.t}"></th>`).join('')}</tr>`;
+$('campCab').innerHTML = `<tr>${COLUNAS.map(c => `<th class="${c.txt?'esq':''}" data-k="${c.k}"><button class="ord" title="${c.dica || 'Ordenar'}">${c.t}<span class="seta"></span></button></th>`).join('')}</tr>`;
 
-function passaFiltro(c, campo){
-  const v = campo.value.trim();
-  if (!v) return true;
-  if (COLUNAS.find(x => x.k === campo.dataset.k).txt) return c[campo.dataset.k].toLowerCase().includes(v.toLowerCase());
-  const min = Number(v.replace(',', '.'));
-  return Number.isNaN(min) || (c[campo.dataset.k] != null && c[campo.dataset.k] >= min);
-}
 function comparar(a, b){
   const x = a[ordem.k], y = b[ordem.k];
   if (x == null || y == null) return (x == null) - (y == null);   // sem valor fica sempre no fim
   return ordem.dir * (typeof x === 'string' ? x.localeCompare(y, 'pt-BR') : x - y);
 }
 function renderCampanhas(){
-  const campos = [...document.querySelectorAll('#campCab input')];
-  const base = campanhas
-    .filter(c => c.nome.toUpperCase().includes(TAG_CAMPANHA))
-    .map(c => ({...c, mpc: c.conversas ? c.msgs/c.conversas : null, cpl: c.leads ? c.gasto/c.leads : null}));
-  const linhas = base.filter(c => campos.every(f => passaFiltro(c, f))).sort(comparar);
+  const linhas = campanhas
+    .filter(c => c.ativa !== false && c.nome.toUpperCase().includes(TAG_CAMPANHA))
+    .map(c => ({...c, mpc: c.conversas ? c.msgs/c.conversas : null, cpl: c.leads ? c.gasto/c.leads : null}))
+    .sort(comparar);
 
   document.querySelectorAll('#campCab th[data-k]').forEach(th => {
     const ativa = th.dataset.k === ordem.k;
     if (ativa) th.setAttribute('aria-sort', ordem.dir > 0 ? 'ascending' : 'descending'); else th.removeAttribute('aria-sort');
     th.querySelector('.seta').textContent = ativa ? (ordem.dir > 0 ? ' ▲' : ' ▼') : '';
   });
-  $('campInfo').textContent = `${linhas.length} de ${base.length} campanhas ${TAG_CAMPANHA} · msgs/conversa é uma estimativa mínima`;
+  $('campInfo').textContent = `${linhas.length} campanhas ${TAG_CAMPANHA} ativas · msgs/conversa é uma estimativa mínima`;
   $('campLinhas').innerHTML = linhas.length
     ? linhas.map(c => `<tr>
         <td class="esq nome">${esc(c.nome)}</td><td class="esq">${esc(c.unidade)}</td>
@@ -361,7 +349,6 @@ function renderCampanhas(){
       </tr>`).join('')
     : `<tr><td class="esq" colspan="${COLUNAS.length}"><div class="empty">Nenhuma campanha encontrada.</div></td></tr>`;
 }
-$('campCab').oninput = renderCampanhas;
 $('campCab').onclick = e => {
   const th = e.target.closest('.ord')?.closest('th');
   if (!th) return;
@@ -369,7 +356,6 @@ $('campCab').onclick = e => {
   ordem = ordem.k === k ? {k, dir:-ordem.dir} : {k, dir:COLUNAS.find(c => c.k === k).txt ? 1 : -1};
   renderCampanhas();
 };
-$('limparFiltros').onclick = () => { document.querySelectorAll('#campCab input').forEach(f => f.value = ''); renderCampanhas(); };
 
 async function ciclo(manual){
   if (buscando) return;

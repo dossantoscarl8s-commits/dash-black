@@ -57,10 +57,18 @@ module.exports = async (req, res) => {
   }
 
   const contas = CONTAS.filter(c => c.enabled);
-  const batch = contas.map(c => ({
-    method: 'GET',
-    relative_url: `${c.adAccountId}/insights?level=campaign&date_preset=today&limit=200&fields=campaign_id,campaign_name,actions,spend,account_currency`,
-  }));
+  // Duas consultas por conta: resultados de hoje e campanhas ativas agora. Os totais da
+  // unidade continuam somando tudo; o status só marca cada campanha com `ativa`.
+  const batch = contas.flatMap(c => [
+    {
+      method: 'GET',
+      relative_url: `${c.adAccountId}/insights?level=campaign&date_preset=today&limit=200&fields=campaign_id,campaign_name,actions,spend,account_currency`,
+    },
+    {
+      method: 'GET',
+      relative_url: `${c.adAccountId}/campaigns?effective_status=${encodeURIComponent('["ACTIVE"]')}&fields=id&limit=500`,
+    },
+  ]);
 
   try {
     const body = new URLSearchParams({
@@ -77,10 +85,13 @@ module.exports = async (req, res) => {
       return;
     }
 
+    const lerItem = item => {
+      try { return item && item.body ? JSON.parse(item.body) : null; } catch (_) { return null; }
+    };
+
     const unidades = contas.map((c, i) => {
-      const item = json[i];
-      let parsed = null;
-      try { parsed = item && item.body ? JSON.parse(item.body) : null; } catch (_) {}
+      const item = json[i * 2];
+      const parsed = lerItem(item);
       if (!item || item.code !== 200 || !parsed || parsed.error) {
         return {
           unidade: c.unidade,
@@ -91,8 +102,17 @@ module.exports = async (req, res) => {
           erro: parsed?.error?.message || `Erro HTTP ${item?.code ?? '?'}`,
         };
       }
+      // Se o status falhar, `ativa` fica null e a campanha segue visível, com o erro nos logs.
+      const itemStatus = json[i * 2 + 1];
+      const status = lerItem(itemStatus);
+      const statusOk = itemStatus?.code === 200 && Array.isArray(status?.data);
+      const ativas = new Set(statusOk ? status.data.map(x => x.id) : []);
+
       const linhas = parsed.data || [];
-      const campanhas = linhas.map(resumirCampanha);
+      const campanhas = linhas.map(row => ({
+        ...resumirCampanha(row),
+        ativa: statusOk ? ativas.has(row.campaign_id) : null,
+      }));
       const somar = campo => campanhas.reduce((s, x) => s + x[campo], 0);
       return {
         unidade: c.unidade,
@@ -104,6 +124,7 @@ module.exports = async (req, res) => {
         moeda: linhas[0]?.account_currency || 'BRL',
         campanhas,
         erro: null,
+        erroStatus: statusOk ? null : (status?.error?.message || 'Falha ao consultar o status das campanhas'),
       };
     });
 
