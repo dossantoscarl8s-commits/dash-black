@@ -153,7 +153,7 @@
       <thead id="uniCab"></thead>
       <tbody id="uniLinhas"></tbody>
     </table></div>
-    <h2 class="secao">Por anúncio · hoje</h2>
+    <h2 class="secao" id="adTitulo">Por anúncio · hoje</h2>
     <div class="tabela aberta"><table>
       <thead id="adCab"></thead>
       <tbody id="adLinhas"></tbody>
@@ -226,7 +226,7 @@ let buscando = false;
 let timer = null;
 
 // ---- abas ----
-const ABAS = DIA ? ['painel','campanhas','logs'] : ['painel','campanhas','estrategia','logs'];
+const ABAS = ['painel','campanhas','estrategia','logs'];
 let abaAtual = 'painel';
 function abrirAba(nome){
   const aba = ABAS.includes(nome) ? nome : 'painel';
@@ -237,11 +237,7 @@ function abrirAba(nome){
     b.setAttribute('aria-selected', b.dataset.aba === aba);
   });
 }
-// Estratégia só existe ao vivo: em um dia encerrado, o botão leva para a aba de hoje.
-document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => {
-  if (ABAS.includes(b.dataset.aba)) location.hash = b.dataset.aba;
-  else location.href = location.pathname + (DEMO ? '?demo' : '') + '#' + b.dataset.aba;
-});
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { location.hash = b.dataset.aba; });
 addEventListener('hashchange', () => { abrirAba(location.hash.slice(1)); carregarEstrategia(); });
 abrirAba(location.hash.slice(1));
 
@@ -481,7 +477,7 @@ function renderCampanhas(){
 const INTERVALO_ESTRATEGIA = 120000;
 const inteiro = v => v == null ? '–' : v.toLocaleString('pt-BR');
 const freq = v => v == null ? '–' : v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-const fracaoDoDia = () => { const a = new Date(); return (a.getHours() + a.getMinutes()/60) / 24; };
+const fracaoDoDia = () => { const a = new Date(); return DIA ? 1 : (a.getHours() + a.getMinutes()/60) / 24; };
 let fracaoDia = fracaoDoDia();
 let estCarregada = false;
 let buscandoEst = false;
@@ -494,8 +490,8 @@ const mostrarUnidades = tabelaOrdenavel('uniCab', 'uniLinhas', [
   {k:'orcamento', t:'Orçamento diário', dica:'Campanhas ativas da unidade com conjuntos no período de veiculação hoje'},
   {k:'consumido', t:'Consumido', dica:'Gasto de hoje nessas mesmas campanhas'},
   {k:'pct', t:'% consumido', dica:'A marca branca mostra quanto do dia já passou'},
-  {k:'alcanceHoje', t:'Alcance hoje', dica:'Todas as campanhas da unidade'},
-  {k:'freqHoje', t:'Freq. hoje', dica:'Todas as campanhas da unidade'},
+  {k:'alcanceHoje', t:DIA ? 'Alcance do dia' : 'Alcance hoje', dica:'Todas as campanhas da unidade'},
+  {k:'freqHoje', t:DIA ? 'Freq. do dia' : 'Freq. hoje', dica:'Todas as campanhas da unidade'},
   {k:'alcance7d', t:'Alcance 7 dias', dica:'Todas as campanhas da unidade'},
   {k:'freq7d', t:'Freq. 7 dias', dica:'Todas as campanhas da unidade'},
 ], {k:'pct', dir:-1}, 'Nenhuma unidade encontrada.', u => `
@@ -512,7 +508,7 @@ const mostrarAnuncios = tabelaOrdenavel('adCab', 'adLinhas', [
   {k:'gasto', t:'Investimento'},
   {k:'ctr', t:'CTR'},
   {k:'custo', t:'Custo/conversa'},
-], {k:'conversas', dir:-1}, 'Nenhum anúncio ativo com entrega hoje.', a => `
+], {k:'conversas', dir:-1}, DIA ? 'Nenhum anúncio com entrega neste dia.' : 'Nenhum anúncio ativo com entrega hoje.', a => `
   <td class="esq nome" title="${esc(a.campanha)}">${esc(a.nome)}</td><td class="esq">${esc(a.unidade)}</td>
   <td class="forte">${a.conversas}</td><td>${a.m3}</td><td>${brl(a.gasto)}</td>
   <td>${a.ctr == null ? '–' : freq(a.ctr) + '%'}</td><td>${brl(a.custo)}</td>`);
@@ -532,7 +528,7 @@ function demoEstrategia(){
 
 async function buscarEstrategia(){
   if (DEMO) return demoEstrategia();
-  const r = await fetch('/api/estrategia', {cache:'no-store'});
+  const r = await fetch('/api/estrategia' + (DIA ? '?data=' + DIA : ''), {cache:'no-store'});
   const j = await r.json();
   if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status);
   return j;
@@ -545,7 +541,7 @@ function renderEstrategia(d){
   const partes = [
     `Orçamento do dia ${brl(orcamento)}`,
     `consumido ${brl(consumido)} (${pct(razao(consumido, orcamento))})`,
-    `${pct(fracaoDia)} do dia já passou`,
+    DIA ? 'orçamento pela configuração atual' : `${pct(fracaoDia)} do dia já passou`,
   ];
   if (semDiario) partes.push(`${semDiario} ${semDiario===1?'campanha':'campanhas'} sem orçamento diário fora da conta`);
   if (fora) partes.push(`${fora} ${fora===1?'conjunto':'conjuntos'} fora do período não ${fora===1?'conta':'contam'}`);
@@ -563,7 +559,7 @@ function renderEstrategia(d){
 }
 
 async function carregarEstrategia(){
-  if (abaAtual !== 'estrategia' || buscandoEst || document.hidden) return;
+  if (abaAtual !== 'estrategia' || buscandoEst || document.hidden || (DIA && estCarregada)) return;
   buscandoEst = true;
   if (!estCarregada) $('estInfo').textContent = 'Carregando…';
   try {
@@ -650,6 +646,7 @@ if (DEMO) { $('banner').className='banner demo'; $('banner').textContent='Modo d
 if (DIA) {
   $('atualizar').hidden = true;
   $('totalL').textContent = 'Leads do dia';
+  $('adTitulo').textContent = `Por anúncio · ${dataCurta(DIA)}`;
 } else {
   agendarVirada();
 }

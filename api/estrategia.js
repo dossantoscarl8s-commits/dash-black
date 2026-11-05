@@ -3,6 +3,7 @@
 // É mais pesada que /api/leads, por isso só roda com a tela aberta e fica mais tempo em cache.
 
 const CONTAS = require('../lib/contas');
+const { dataValida, diasAntes } = require('../lib/datas');
 
 const GRAPH_VERSION = process.env.META_API_VERSION || 'v24.0';
 const TAG_CAMPANHA = '[MENSAGENS]';
@@ -28,6 +29,19 @@ const consultasDaConta = id => [
 ];
 const consultaConjuntos = id =>
   `${id}/adsets?effective_status=${ATIVAS}&limit=500&fields=${campos('campaign_id,daily_budget,start_time,end_time')}`;
+
+// Dia encerrado: resultados da data escolhida. A Meta não guarda o orçamento de cada dia, então
+// vale o configurado hoje nas campanhas que gastaram naquela data, sem filtrar pelo status atual.
+const CACHE_DIA_ENCERRADO = 3600;
+const periodo = (de, ate) => `time_range=${campos(JSON.stringify({ since: de, until: ate }))}`;
+const consultasDoDia = (id, data) => [
+  `${id}/insights?level=account&${periodo(data, data)}&fields=${campos('reach,frequency')}`,
+  `${id}/insights?level=account&${periodo(diasAntes(data, 6), data)}&fields=${campos('reach,frequency')}`,
+  `${id}/insights?level=ad&${periodo(data, data)}&limit=500&fields=${campos('ad_id,ad_name,campaign_id,campaign_name,spend,impressions,ctr,actions')}`,
+  `${id}/campaigns?limit=500&fields=${campos('id,name,daily_budget')}`,
+  `${id}/adsets?limit=500&fields=${campos('campaign_id,daily_budget,start_time,end_time')}`,
+];
+const POR_CONTA_DIA = 5;
 
 function valorAcao(actions, tipo) {
   if (!Array.isArray(actions)) return 0;
@@ -64,14 +78,13 @@ function resumirOrcamento(campanhas, conjuntos, agora = Date.now()) {
   return { orcamento, consumido, semDiario, foraDoPeriodo: conjuntos.length - vigentes.length };
 }
 
-function resumirAnuncio(ad, unidade, campanha) {
-  const row = ad.insights?.data?.[0];
+function resumirAnuncio(id, nome, row, unidade, campanha) {
   if (!row) return null;
   return {
-    id: ad.id,
-    nome: ad.name || 'Sem nome',
+    id,
+    nome: nome || 'Sem nome',
     unidade,
-    campanha: campanha.name,
+    campanha,
     gasto: Number(row.spend) || 0,
     impressoes: Number(row.impressions) || 0,
     ctr: numero(row.ctr),
@@ -106,6 +119,46 @@ function lerItem(item) {
   return { erro: null, data: corpo.data || [] };
 }
 
+async function resumirDia(contas, data, token) {
+  const itens = await consultarMeta(contas.flatMap(c => consultasDoDia(c.adAccountId, data)), token);
+  const meioDoDia = Date.parse(`${data}T12:00:00-03:00`);
+  const anuncios = [];
+
+  const unidades = contas.map((c, i) => {
+    const [hoje, semana, linhas, campanhas, conjuntos] =
+      itens.slice(i * POR_CONTA_DIA, (i + 1) * POR_CONTA_DIA).map(lerItem);
+    const erro = [hoje, semana, linhas, campanhas, conjuntos].find(x => x.erro)?.erro || null;
+
+    const gastos = new Map();
+    for (const row of linhas.data || []) {
+      gastos.set(row.campaign_id, (gastos.get(row.campaign_id) || 0) + (Number(row.spend) || 0));
+      if (!rastreada({ name: row.campaign_name })) continue;
+      const anuncio = resumirAnuncio(row.ad_id, row.ad_name, row, c.unidade, row.campaign_name);
+      if (anuncio) anuncios.push(anuncio);
+    }
+
+    const comGasto = (campanhas.data || [])
+      .filter(x => gastos.has(x.id))
+      .map(x => ({ ...x, insights: { data: [{ spend: gastos.get(x.id) }] } }));
+    const orcamento = campanhas.data && conjuntos.data && linhas.data
+      ? resumirOrcamento(comGasto, conjuntos.data, meioDoDia)
+      : { orcamento: null, consumido: null, semDiario: null };
+
+    return {
+      unidade: c.unidade,
+      adAccountId: c.adAccountId,
+      ...orcamento,
+      foraDoPeriodo: null,
+      alcanceHoje: numero(hoje.data?.[0]?.reach),
+      freqHoje: numero(hoje.data?.[0]?.frequency),
+      alcance7d: numero(semana.data?.[0]?.reach),
+      freq7d: numero(semana.data?.[0]?.frequency),
+      erro,
+    };
+  });
+  return { unidades, anuncios };
+}
+
 module.exports = async (req, res) => {
   const token = process.env.META_TOKEN;
   if (!token) {
@@ -114,6 +167,23 @@ module.exports = async (req, res) => {
   }
 
   const contas = CONTAS.filter(c => c.enabled);
+  const data = req.query?.data || null;
+  if (data && !dataValida(data)) {
+    res.status(400).json({ erro: 'Data inválida.' });
+    return;
+  }
+  if (data) {
+    try {
+      const { unidades, anuncios } = await resumirDia(contas, data, token);
+      const cache = unidades.some(u => u.erro) ? 30 : CACHE_DIA_ENCERRADO;
+      res.setHeader('Cache-Control', `s-maxage=${cache}`);
+      res.status(200).json({ atualizadoEm: new Date().toISOString(), unidades, anuncios });
+    } catch (e) {
+      res.status(502).json({ erro: 'Falha ao consultar a Meta: ' + e.message });
+    }
+    return;
+  }
+
   const agora = Date.now();
   const conjuntosValidos = conjuntosGuardados && agora - conjuntosGuardados.em < VALIDADE_CONJUNTOS;
 
@@ -146,7 +216,7 @@ module.exports = async (req, res) => {
         for (const ad of ads.data) {
           const campanha = porId.get(ad.campaign_id);
           if (!campanha || !rastreada(campanha)) continue;
-          const anuncio = resumirAnuncio(ad, c.unidade, campanha);
+          const anuncio = resumirAnuncio(ad.id, ad.name, ad.insights?.data?.[0], c.unidade, campanha.name);
           if (anuncio) anuncios.push(anuncio);
         }
       }

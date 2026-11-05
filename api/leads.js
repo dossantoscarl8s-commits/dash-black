@@ -3,6 +3,7 @@
 // O token fica só no servidor, na variável de ambiente META_TOKEN.
 
 const CONTAS = require('../lib/contas');
+const { dataValida } = require('../lib/datas');
 
 const GRAPH_VERSION = process.env.META_API_VERSION || 'v24.0';
 
@@ -14,8 +15,6 @@ let statusGuardado = null;   // {em, porConta: Map(adAccountId → {ativas} ou {
 // Dia encerrado: só aceita datas anteriores a hoje no horário de Brasília. O valor fica em cache
 // por 1 h porque a Meta ainda pode consolidar conversas depois da virada.
 const CACHE_DIA_ENCERRADO = 3600;
-const hojeBrasil = () => new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
-const dataValida = v => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)) && v < hojeBrasil();
 
 // Tipos de ação contados como lead, em ordem de prioridade (o primeiro encontrado vence,
 // para não contar o mesmo lead duas vezes). Pode ser sobrescrito por LEAD_ACTION_TYPES.
