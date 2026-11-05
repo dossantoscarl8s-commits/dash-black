@@ -62,6 +62,8 @@
   .ev{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid var(--line);font-size:12px}
   .ev:first-of-type{border-top:0}
   .ev b{color:var(--acc)} .ev time{color:var(--mut);font-size:11px;white-space:nowrap}
+  .ev[data-dica]{cursor:help}
+  .dica{position:fixed;z-index:5;max-width:260px;background:var(--card2);border:1px solid #3a3a40;border-radius:7px;padding:6px 9px;font-size:11px;line-height:1.4;white-space:pre-line;box-shadow:0 6px 18px rgba(0,0,0,.45)}
   .empty{color:var(--mut);font-size:12px;padding:6px 0}
   .banner{display:none;background:#2a1215;border:1px solid #5b1d22;color:#fecaca;padding:6px 11px;border-radius:8px;margin-bottom:10px;font-size:12px}
   .demo{background:#2a2410;border-color:#5b4d1d;color:#fde68a}
@@ -174,9 +176,12 @@
 
   <nav class="cal" id="calendario" aria-label="Dias encerrados"></nav>
 </div>
+<div class="dica" id="dica" role="tooltip" hidden></div>
 
 <script>
-const INTERVALO = 10000;
+const INTERVALO = 30000;
+const INTERVALO_DIA_ENCERRADO = 3600000;
+const JANELA_MANUAL = 15000;   // cliques próximos no Atualizar dividem a mesma consulta
 const MAX_LOGS = 300;
 const CHAVE_LOGS = 'dash-leads-logs';
 const PARAMS = new URLSearchParams(location.search);
@@ -197,6 +202,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const $ = id => document.getElementById(id);
 
 let anterior = null;       // {unidade: leads}
+let anterioresAd = {};     // {id do anúncio: leads}
 let diaAnterior = new Date().toDateString();
 let eventos = [];
 let campanhas = [];
@@ -266,6 +272,7 @@ async function buscarDemo(){
   const somar = (u,campo) => u.campanhas.reduce((s,c)=>s+c[campo],0);
   return {atualizadoEm:new Date().toISOString(), unidades: demoBase.map(u=>({
     unidade:u.unidade, erro:null, campanhas:u.campanhas.map(c=>({...c})),
+    anuncios:u.campanhas.filter(c=>c.leads).map(c=>({id:u.unidade+c.id, nome:`Criativo ${c.nome.slice(-1)}`, leads:c.leads})),
     leads:somar(u,'leads'), gasto:somar(u,'gasto'), conversas:somar(u,'conversas'), m3:somar(u,'m3'), bloqueios:somar(u,'bloqueios'),
   }))};
 }
@@ -273,12 +280,44 @@ async function buscarDemo(){
 // A CDN guarda a resposta por 8 s; a atualização manual fura esse cache.
 async function buscar(manual){
   if (DEMO) return buscarDemo();
-  const url = DIA ? '/api/leads?data=' + DIA : '/api/leads' + (manual ? '?t=' + Date.now() : '');
+  const url = DIA ? '/api/leads?data=' + DIA : '/api/leads' + (manual ? '?t=' + Math.floor(Date.now()/JANELA_MANUAL) : '');
   const r = await fetch(url, {cache:'no-store'});
   const j = await r.json();
   if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status);
   return j;
 }
+
+// A Meta não identifica o lead: a origem é o anúncio cujo contador subiu desde a última leitura.
+function origemDoLead(u){
+  const subiram = (u.anuncios||[])
+    .map(a => ({nome:a.nome, n:a.leads - (anterioresAd[a.id] || 0)}))
+    .filter(a => a.n > 0);
+  if (!subiram.length) return 'Anúncio não identificado';
+  return subiram.map(a => `Anúncio: ${a.nome}${subiram.length > 1 || a.n > 1 ? ` (+${a.n})` : ''}`).join('\n');
+}
+
+function renderFeed(){
+  $('dica').hidden = true;
+  $('feed').innerHTML = eventos.length
+    ? eventos.map(e=>`<div class="ev" tabindex="0" data-dica="${esc(e.dica)}"><span><b>+${e.n}</b> ${e.n>1?'leads':'lead'} · ${esc(e.unidade)}</span><time>${hora(e.t)}</time></div>`).join('')
+    : `<div class="empty">${FEED_VAZIO}</div>`;
+}
+
+function mostrarDica(e){
+  const ev = e.target.closest('.ev[data-dica]');
+  if (!ev) return;
+  const dica = $('dica'), r = ev.getBoundingClientRect(), aoLado = r.left > 280;
+  dica.textContent = ev.dataset.dica;
+  dica.hidden = false;
+  dica.style.top = `${aoLado ? r.top : r.bottom + 4}px`;
+  dica.style.left = aoLado ? 'auto' : `${r.left}px`;
+  dica.style.right = aoLado ? `${innerWidth - r.left + 8}px` : 'auto';
+}
+const esconderDica = () => { $('dica').hidden = true; };
+$('feed').addEventListener('mouseover', mostrarDica);
+$('feed').addEventListener('focusin', mostrarDica);
+$('feed').addEventListener('mouseout', esconderDica);
+$('feed').addEventListener('focusout', esconderDica);
 
 function render(d){
   const us = d.unidades;
@@ -296,11 +335,13 @@ function render(d){
     const diff = u.leads - (anterior[u.unidade] ?? u.leads);
     if (diff > 0) {
       novos[u.unidade] = diff;
-      eventos.unshift({unidade:u.unidade, n:diff, t:new Date()});
-      registrar('lead', `+${diff} ${diff>1?'leads':'lead'} em ${u.unidade}`);
+      const dica = origemDoLead(u);
+      eventos.unshift({unidade:u.unidade, n:diff, t:new Date(), dica});
+      registrar('lead', `+${diff} ${diff>1?'leads':'lead'} em ${u.unidade} · ${dica.replace(/\n/g, ', ')}`);
     }
   }
   eventos = eventos.slice(0, 60);
+  anterioresAd = Object.fromEntries(ok.flatMap(u => (u.anuncios||[]).map(a => [a.id, a.leads])));
 
   for (const u of us) {
     const erro = u.erro || u.erroStatus;
@@ -339,10 +380,7 @@ function render(d){
   }).join('');
   setTimeout(()=>document.querySelectorAll('.card.flash').forEach(c=>c.classList.remove('flash')), 2500);
 
-  $('feed').innerHTML = eventos.length
-    ? eventos.map(e=>`<div class="ev"><span><b>+${e.n}</b> ${e.n>1?'leads':'lead'} · ${esc(e.unidade)}</span><time>${hora(e.t)}</time></div>`).join('')
-    : `<div class="empty">${FEED_VAZIO}</div>`;
-
+  if (Object.keys(novos).length) renderFeed();
   renderCampanhas();
   anterior = Object.fromEntries(ok.map(u=>[u.unidade,u.leads]));
 }
@@ -488,7 +526,7 @@ function renderEstrategia(d){
 }
 
 async function carregarEstrategia(){
-  if (abaAtual !== 'estrategia' || buscandoEst) return;
+  if (abaAtual !== 'estrategia' || buscandoEst || document.hidden) return;
   buscandoEst = true;
   if (!estCarregada) $('estInfo').textContent = 'Carregando…';
   try {
@@ -521,9 +559,11 @@ function renderCalendario(){
 function virarDia(){
   registrar('info', `Dia ${dataCurta(isoLocal(new Date(Date.now() - 864e5)))} encerrado`);
   anterior = null;
+  anterioresAd = {};
   eventos = [];
   diaAnterior = new Date().toDateString();
   $('totalS').innerHTML = '&nbsp;';
+  renderFeed();
   renderCalendario();
 }
 
@@ -535,6 +575,7 @@ function agendarVirada(){
 
 async function ciclo(manual){
   if (buscando) return;
+  if (document.hidden && !manual) { timer = setTimeout(ciclo, INTERVALO); return; }   // aba escondida não consulta
   buscando = true;
   clearTimeout(timer);
   if (!DIA && new Date().toDateString() !== diaAnterior) virarDia();
@@ -564,9 +605,11 @@ async function ciclo(manual){
   } finally {
     buscando = false;
     $('atualizar').disabled = false;
-    if (!DIA || !ultimoOk) timer = setTimeout(ciclo, INTERVALO);   // dia encerrado só repete se falhar
+    // Dia encerrado acompanha o consolidado da Meta, que ainda pode mudar, mas sem pressa.
+    timer = setTimeout(ciclo, DIA && ultimoOk ? INTERVALO_DIA_ENCERRADO : INTERVALO);
   }
 }
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { ciclo(); carregarEstrategia(); } });
 $('atualizar').onclick = () => { ciclo(true); carregarEstrategia(); };
 if (DEMO) { $('banner').className='banner demo'; $('banner').textContent='Modo demonstração: números fictícios.'; }
 if (DIA) {

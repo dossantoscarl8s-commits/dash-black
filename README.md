@@ -1,6 +1,6 @@
 # Dashboard de leads ao vivo (Meta Ads)
 
-- `index.html`: o painel, com as abas Painel, Campanhas, Estratégia e Logs (atualiza a cada 10 s ou pelo botão Atualizar). Abra com `?demo` para ver com números fictícios.
+- `index.html`: o painel, com as abas Painel, Campanhas, Estratégia e Logs (atualiza a cada 30 s, só com a aba visível, ou pelo botão Atualizar). Abra com `?demo` para ver com números fictícios.
 - `api/leads.js`: rota serverless que consulta as 17 contas por campanha numa única chamada batch da Graph API. Com `?data=AAAA-MM-DD`, devolve o resultado de um dia encerrado.
 - Calendário no rodapé: à meia-noite o painel zera e o dia anterior fica disponível em `?dia=AAAA-MM-DD`, congelado.
 - `api/estrategia.js`: rota da aba Estratégia (orçamento, alcance, frequência e anúncios). Só roda com a aba aberta e os dados ficam até 5 min em cache.
