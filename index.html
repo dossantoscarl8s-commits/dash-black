@@ -71,11 +71,6 @@
   .bar-acoes .info{font-size:12px;color:var(--mut)}
   .filtros{display:flex;flex-wrap:wrap;gap:6px}
   .filtros button.on{border-color:var(--acc);color:var(--acc)}
-  .entrar{display:flex;flex-direction:column;gap:8px;width:min(280px,100%);margin:40px auto;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
-  .entrar .secao{margin:0 0 4px}
-  .entrar input{background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:7px 9px;font:400 13px Inter,sans-serif}
-  .entrar input:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
-  .entrar .erro{color:var(--err);font-size:12px;margin:0}
   .num{color:var(--acc);font-weight:600;text-decoration:none}
   .num:hover{text-decoration:underline}
   .ord{background:none;border:0;padding:0;font:inherit;color:inherit;border-radius:3px}
@@ -167,23 +162,13 @@
   </main>
 
   <main id="aba-leads" hidden>
-    <form class="entrar" id="formLogin" hidden>
-      <h2 class="secao">Acesso restrito</h2>
-      <input id="usuario" autocomplete="username" placeholder="Usuário" aria-label="Usuário" required>
-      <input id="senha" type="password" autocomplete="current-password" placeholder="Senha" aria-label="Senha" required>
-      <button type="submit">Entrar</button>
-      <p class="erro" id="loginErro" hidden></p>
-    </form>
-    <div id="leadsConteudo" hidden>
-      <div class="bar-acoes">
-        <span class="info" id="leadsInfo"></span>
-        <button id="sair">Sair</button>
-      </div>
-      <div class="tabela aberta"><table>
-        <thead id="leadCab"></thead>
-        <tbody id="leadLinhas"></tbody>
-      </table></div>
+    <div class="bar-acoes">
+      <span class="info" id="leadsInfo"></span>
     </div>
+    <div class="tabela aberta"><table>
+      <thead id="leadCab"></thead>
+      <tbody id="leadLinhas"></tbody>
+    </table></div>
   </main>
 
   <main id="aba-logs" hidden>
@@ -568,72 +553,44 @@ async function carregarEstrategia(){
   }
 }
 
-// ---- aba Leads: dados protegidos por login no servidor ----
+// ---- aba Leads: só o número do WhatsApp, aberto pelo link privado ----
 const INTERVALO_LEADS = 30000;
+const CHAVE_LEADS = PARAMS.get('chave') || '';
 const LEADS_DEMO = [
-  {whatsapp:'5500900000001', nome:'Lead fictício 1', em:Date.now()-180000, mensagens:4, anuncio:null, origem:'Botox 3 Regiões'},
-  {whatsapp:'5500900000002', nome:'Lead fictício 2', em:Date.now()-900000, mensagens:1, anuncio:'000000000', origem:null},
+  {whatsapp:'5500900000001', em:Date.now()-180000},
+  {whatsapp:'5500900000002', em:Date.now()-900000},
 ];
 const telefone = n => {
   const m = String(n).match(/^55(\d{2})(\d{4,5})(\d{4})$/);
   return m ? `+55 ${m[1]} ${m[2]}-${m[3]}` : `+${n}`;
 };
 const mostrarLeads = tabelaOrdenavel('leadCab', 'leadLinhas', [
-  {k:'em', t:'Recebido em'},
   {k:'whatsapp', t:'WhatsApp', txt:true},
-  {k:'nome', t:'Nome', txt:true},
-  {k:'mensagens', t:'Mensagens'},
-  {k:'origem', t:'Origem', txt:true},
 ], {k:'em', dir:-1}, 'Nenhum lead recebido ainda.', l => `
-  <td>${dataHora(new Date(l.em))}</td>
-  <td class="esq"><a class="num" href="https://wa.me/${encodeURIComponent(l.whatsapp)}" target="_blank" rel="noopener">${esc(telefone(l.whatsapp))}</a></td>
-  <td class="esq">${esc(l.nome || '–')}</td><td>${l.mensagens}</td>
-  <td class="esq">${esc(l.origem || (l.anuncio ? 'Anúncio ' + l.anuncio : '–'))}</td>`);
+  <td class="esq"><a class="num" href="https://wa.me/${encodeURIComponent(l.whatsapp)}" target="_blank" rel="noopener">${esc(telefone(l.whatsapp))}</a></td>`);
 
-function telaLeads(logado){
-  $('formLogin').hidden = logado;
-  $('leadsConteudo').hidden = !logado;
-}
 function exibirLeads(lista){
-  telaLeads(true);
   $('leadsInfo').textContent = lista.length === 1 ? '1 lead' : `${lista.length} leads`;
   mostrarLeads(lista);
 }
 async function carregarLeads(){
   if (abaAtual !== 'leads' || document.hidden) return;
   if (DEMO) { exibirLeads(LEADS_DEMO); return; }
+  if (!CHAVE_LEADS) {
+    $('leadsInfo').textContent = 'Abra esta aba pelo link privado.';
+    mostrarLeads([]);
+    return;
+  }
   try {
-    const r = await fetch('/api/whatsapp', {cache:'no-store'});
-    if (r.status === 401) { telaLeads(false); return; }
+    const r = await fetch('/api/whatsapp', {cache:'no-store', headers:{'x-chave':CHAVE_LEADS}});
     const j = await r.json();
     if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status);
     exibirLeads(j.leads);
   } catch (e) {
     registrar('erro', 'Falha na aba Leads: ' + e.message);
-    if ($('leadsConteudo').hidden) telaLeads(false);
+    $('leadsInfo').textContent = e.message;
   }
 }
-$('formLogin').onsubmit = async e => {
-  e.preventDefault();
-  $('loginErro').hidden = true;
-  try {
-    const r = await fetch('/api/login', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({usuario:$('usuario').value, senha:$('senha').value}),
-    });
-    if (!r.ok) throw new Error((await r.json()).erro || 'Erro ' + r.status);
-    $('senha').value = '';
-    carregarLeads();
-  } catch (erro) {
-    $('loginErro').textContent = erro.message;
-    $('loginErro').hidden = false;
-  }
-};
-$('sair').onclick = async () => {
-  await fetch('/api/login', {method:'DELETE'});
-  mostrarLeads([]);
-  telaLeads(false);
-};
 
 // ---- calendário de dias encerrados e virada à meia-noite ----
 function renderCalendario(){

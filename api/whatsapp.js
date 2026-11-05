@@ -1,15 +1,17 @@
 // Rota serverless (Vercel): /api/whatsapp
-// GET com hub.* confirma o webhook na Meta; POST recebe as mensagens; GET com login lista os leads.
-// Não chama a API da Meta: só recebe o que ela envia.
+// GET com hub.* confirma o webhook na Meta; POST recebe as mensagens; GET com a chave lista os números.
+// A Meta não tem rota para consultar quem mandou mensagem: o número só chega por este webhook.
 //
-// TESTE: os leads ficam na memória do servidor e somem quando ele reinicia. Trocar por Supabase
-// antes de usar em produção.
+// TESTE: os números ficam na memória do servidor e somem quando ele reinicia. Trocar por Supabase
+// antes de usar em produção. Telefone é dado pessoal: a lista nunca fica aberta sem LEADS_CHAVE.
 
 const crypto = require('crypto');
-const { sessaoValida, iguais } = require('../lib/sessao');
 
 const MAX_LEADS = 500;
 const leads = new Map();   // {número: lead}
+
+const resumo = v => crypto.createHash('sha256').update(String(v)).digest();
+const iguais = (a, b) => crypto.timingSafeEqual(resumo(a), resumo(b));
 
 function lerCorpo(req) {
   return new Promise((resolve, reject) => {
@@ -26,30 +28,13 @@ function assinaturaValida(corpo, assinatura, segredo) {
   return iguais(assinatura, esperada);
 }
 
-// Cada número é um lead: novas mensagens só atualizam o contador.
+// Cada número é um lead, registrado na primeira mensagem.
 function registrarMensagens(payload) {
   for (const entrada of payload.entry || []) {
     for (const mudanca of entrada.changes || []) {
-      const { messages = [], contacts = [] } = mudanca.value || {};
-      for (const msg of messages) {
-        if (!msg.from) continue;
-        const contato = contacts.find(c => c.wa_id === msg.from);
-        const emMs = (Number(msg.timestamp) || Date.now() / 1000) * 1000;
-        const lead = leads.get(msg.from);
-        if (lead) {
-          lead.mensagens += 1;
-          lead.ultima = emMs;
-          continue;
-        }
-        leads.set(msg.from, {
-          whatsapp: msg.from,
-          nome: contato?.profile?.name || null,
-          em: emMs,
-          ultima: emMs,
-          mensagens: 1,
-          anuncio: msg.referral?.source_id || null,
-          origem: msg.referral?.headline || null,
-        });
+      for (const msg of mudanca.value?.messages || []) {
+        if (!msg.from || leads.has(msg.from)) continue;
+        leads.set(msg.from, { whatsapp: msg.from, em: (Number(msg.timestamp) || Date.now() / 1000) * 1000 });
         if (leads.size > MAX_LEADS) leads.delete(leads.keys().next().value);
       }
     }
@@ -58,7 +43,7 @@ function registrarMensagens(payload) {
 
 module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
-  const { WHATSAPP_VERIFY_TOKEN, WHATSAPP_APP_SECRET } = process.env;
+  const { WHATSAPP_VERIFY_TOKEN, WHATSAPP_APP_SECRET, LEADS_CHAVE } = process.env;
 
   if (req.method === 'GET' && req.query?.['hub.mode']) {
     const token = req.query['hub.verify_token'] || '';
@@ -71,8 +56,12 @@ module.exports = async (req, res) => {
   }
 
   if (req.method === 'GET') {
-    if (!sessaoValida(req)) {
-      res.status(401).json({ erro: 'Faça login para ver os leads.' });
+    if (!LEADS_CHAVE) {
+      res.status(503).json({ erro: 'Link privado não configurado no Vercel.' });
+      return;
+    }
+    if (!iguais(req.headers['x-chave'] || '', LEADS_CHAVE)) {
+      res.status(401).json({ erro: 'Link privado inválido.' });
       return;
     }
     res.status(200).json({ leads: [...leads.values()] });

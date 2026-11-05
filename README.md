@@ -12,8 +12,8 @@
 3. Em Settings > Environment Variables, crie `META_TOKEN` com o token da Meta.
 4. Deploy. O painel fica na raiz do domínio.
 
-Aba Leads (teste, leads em memória até migrar para o Supabase): crie `LEADS_USUARIO`, `LEADS_SENHA` e
-`SESSAO_SEGREDO` para o login, e `WHATSAPP_VERIFY_TOKEN` e `WHATSAPP_APP_SECRET` para o webhook `/api/whatsapp`.
+Aba Leads (teste, números em memória até migrar para o Supabase): crie `LEADS_CHAVE` para o link privado
+`/?chave=VALOR#leads`, e `WHATSAPP_VERIFY_TOKEN` e `WHATSAPP_APP_SECRET` para o webhook `/api/whatsapp`.
 
 Variáveis opcionais: `META_API_VERSION` (padrão v24.0) e `LEAD_ACTION_TYPES`
 (padrão `onsite_conversion.messaging_conversation_started_7d,lead,...`: conta conversas por mensagem iniciadas, que é o resultado das campanhas de mensagens).
