@@ -4,6 +4,7 @@
 - `api/leads.js`: rota serverless que consulta as 17 contas por campanha numa única chamada batch da Graph API. Com `?data=AAAA-MM-DD`, devolve o resultado de um dia encerrado.
 - Calendário no rodapé: à meia-noite o painel zera e o dia anterior fica disponível em `?dia=AAAA-MM-DD`, congelado.
 - `api/estrategia.js`: rota da aba Estratégia (orçamento, alcance, frequência e anúncios). Só roda com a aba aberta e os dados ficam até 5 min em cache.
+- Chegadas recentes: 15 leads por tela, com o anúncio em tooltip. Ficam guardadas no navegador até a migração para o Supabase.
 - `lib/contas.js`: lista de unidades e contas.
 
 ## Publicar no Vercel

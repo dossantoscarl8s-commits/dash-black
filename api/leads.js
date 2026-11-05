@@ -43,6 +43,18 @@ function valorAcao(actions, tipo) {
   return a ? Number(a.value) || 0 : 0;
 }
 
+// Ao vivo a consulta vem por anúncio, no mesmo número de chamadas, e aqui volta a ser por campanha.
+function agruparCampanhas(linhas) {
+  const porCampanha = new Map();
+  for (const row of linhas) {
+    const atual = resumirCampanha(row);
+    const soma = porCampanha.get(atual.id);
+    if (!soma) { porCampanha.set(atual.id, atual); continue; }
+    for (const campo of ['leads', 'gasto', 'conversas', 'm3', 'bloqueios']) soma[campo] += atual[campo];
+  }
+  return [...porCampanha.values()];
+}
+
 function resumirCampanha(row) {
   return {
     id: row.campaign_id,
@@ -77,10 +89,12 @@ module.exports = async (req, res) => {
 
   // Resultados do dia de cada conta e, quando vencido, o status. Os totais da unidade
   // continuam somando tudo; o status só marca cada campanha com `ativa`.
+  const nivel = data ? 'level=campaign' : 'level=ad';
+  const camposAnuncio = data ? '' : 'ad_id,ad_name,';
   const batch = [
     ...contas.map(c => ({
       method: 'GET',
-      relative_url: `${c.adAccountId}/insights?level=campaign&${periodo}&limit=200&fields=campaign_id,campaign_name,actions,spend,account_currency`,
+      relative_url: `${c.adAccountId}/insights?${nivel}&${periodo}&limit=500&fields=${camposAnuncio}campaign_id,campaign_name,actions,spend,account_currency`,
     })),
     ...(!atualizarStatus ? [] : contas.map(c => ({
       method: 'GET',
@@ -140,10 +154,14 @@ module.exports = async (req, res) => {
       const { ativas, erro: erroStatus = null } = data ? {} : statusGuardado.porConta.get(c.adAccountId);
 
       const linhas = parsed.data || [];
-      const campanhas = linhas.map(row => ({
-        ...resumirCampanha(row),
-        ativa: ativas ? ativas.has(row.campaign_id) : null,
+      const campanhas = agruparCampanhas(linhas).map(x => ({
+        ...x,
+        ativa: ativas ? ativas.has(x.id) : null,
       }));
+      const anuncios = linhas
+        .filter(row => row.ad_id)
+        .map(row => ({ id: row.ad_id, nome: row.ad_name || 'Sem nome', leads: contarLeads(row.actions) }))
+        .filter(a => a.leads > 0);
       const somar = campo => campanhas.reduce((s, x) => s + x[campo], 0);
       return {
         unidade: c.unidade,
@@ -155,6 +173,7 @@ module.exports = async (req, res) => {
         bloqueios: somar('bloqueios'),
         moeda: linhas[0]?.account_currency || 'BRL',
         campanhas,
+        anuncios,
         erro: null,
         erroStatus,
       };
