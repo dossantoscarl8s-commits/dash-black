@@ -62,8 +62,6 @@
   .ev{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid var(--line);font-size:12px}
   .ev:first-of-type{border-top:0}
   .ev b{color:var(--acc)} .ev time{color:var(--mut);font-size:11px;white-space:nowrap}
-  .ev[data-dica]{cursor:help}
-  .dica{position:fixed;z-index:5;max-width:260px;background:var(--card2);border:1px solid #3a3a40;border-radius:7px;padding:6px 9px;font-size:11px;line-height:1.4;white-space:pre-line;box-shadow:0 6px 18px rgba(0,0,0,.45)}
   .empty{color:var(--mut);font-size:12px;padding:6px 0}
   .banner{display:none;background:#2a1215;border:1px solid #5b1d22;color:#fecaca;padding:6px 11px;border-radius:8px;margin-bottom:10px;font-size:12px}
   .demo{background:#2a2410;border-color:#5b4d1d;color:#fde68a}
@@ -71,8 +69,6 @@
   .bar-acoes .info{font-size:12px;color:var(--mut)}
   .filtros{display:flex;flex-wrap:wrap;gap:6px}
   .filtros button.on{border-color:var(--acc);color:var(--acc)}
-  .num{color:var(--acc);font-weight:600;text-decoration:none}
-  .num:hover{text-decoration:underline}
   .ord{background:none;border:0;padding:0;font:inherit;color:inherit;border-radius:3px}
   .ord:hover{color:var(--txt)}
   th[aria-sort] .ord{color:var(--acc)}
@@ -112,7 +108,6 @@
         <button role="tab" data-aba="painel">Painel</button>
         <button role="tab" data-aba="campanhas">Campanhas</button>
         <button role="tab" data-aba="estrategia">Estratégia</button>
-        <button role="tab" data-aba="leads">Leads</button>
         <button role="tab" data-aba="logs">Logs</button>
       </nav>
       <button id="atualizar" title="Buscar os dados agora">↻ Atualizar</button>
@@ -161,16 +156,6 @@
     </table></div>
   </main>
 
-  <main id="aba-leads" hidden>
-    <div class="bar-acoes">
-      <span class="info" id="leadsInfo"></span>
-    </div>
-    <div class="tabela aberta"><table>
-      <thead id="leadCab"></thead>
-      <tbody id="leadLinhas"></tbody>
-    </table></div>
-  </main>
-
   <main id="aba-logs" hidden>
     <div class="bar-acoes">
       <div class="filtros" id="filtros">
@@ -189,12 +174,9 @@
 
   <nav class="cal" id="calendario" aria-label="Dias encerrados"></nav>
 </div>
-<div class="dica" id="dica" role="tooltip" hidden></div>
 
 <script>
-const INTERVALO = 30000;
-const INTERVALO_DIA_ENCERRADO = 3600000;
-const JANELA_MANUAL = 15000;   // cliques próximos no Atualizar dividem a mesma consulta
+const INTERVALO = 10000;
 const MAX_LOGS = 300;
 const CHAVE_LOGS = 'dash-leads-logs';
 const PARAMS = new URLSearchParams(location.search);
@@ -215,7 +197,6 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const $ = id => document.getElementById(id);
 
 let anterior = null;       // {unidade: leads}
-let anterioresAd = {};     // {id do anúncio: leads}
 let diaAnterior = new Date().toDateString();
 let eventos = [];
 let campanhas = [];
@@ -225,7 +206,7 @@ let buscando = false;
 let timer = null;
 
 // ---- abas ----
-const ABAS = DIA ? ['painel','campanhas','logs'] : ['painel','campanhas','estrategia','leads','logs'];
+const ABAS = DIA ? ['painel','campanhas','logs'] : ['painel','campanhas','estrategia','logs'];
 let abaAtual = 'painel';
 function abrirAba(nome){
   const aba = ABAS.includes(nome) ? nome : 'painel';
@@ -237,7 +218,7 @@ function abrirAba(nome){
   });
 }
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { location.hash = b.dataset.aba; });
-addEventListener('hashchange', () => { abrirAba(location.hash.slice(1)); carregarEstrategia(); carregarLeads(); });
+addEventListener('hashchange', () => { abrirAba(location.hash.slice(1)); carregarEstrategia(); });
 abrirAba(location.hash.slice(1));
 
 // ---- logs ----
@@ -285,7 +266,6 @@ async function buscarDemo(){
   const somar = (u,campo) => u.campanhas.reduce((s,c)=>s+c[campo],0);
   return {atualizadoEm:new Date().toISOString(), unidades: demoBase.map(u=>({
     unidade:u.unidade, erro:null, campanhas:u.campanhas.map(c=>({...c})),
-    anuncios:u.campanhas.filter(c=>c.leads).map(c=>({id:u.unidade+c.id, nome:`Criativo ${c.nome.slice(-1)}`, leads:c.leads})),
     leads:somar(u,'leads'), gasto:somar(u,'gasto'), conversas:somar(u,'conversas'), m3:somar(u,'m3'), bloqueios:somar(u,'bloqueios'),
   }))};
 }
@@ -293,44 +273,12 @@ async function buscarDemo(){
 // A CDN guarda a resposta por 8 s; a atualização manual fura esse cache.
 async function buscar(manual){
   if (DEMO) return buscarDemo();
-  const url = DIA ? '/api/leads?data=' + DIA : '/api/leads' + (manual ? '?t=' + Math.floor(Date.now()/JANELA_MANUAL) : '');
+  const url = DIA ? '/api/leads?data=' + DIA : '/api/leads' + (manual ? '?t=' + Date.now() : '');
   const r = await fetch(url, {cache:'no-store'});
   const j = await r.json();
   if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status);
   return j;
 }
-
-// A Meta não identifica o lead: a origem é o anúncio cujo contador subiu desde a última leitura.
-function origemDoLead(u){
-  const subiram = (u.anuncios||[])
-    .map(a => ({nome:a.nome, n:a.leads - (anterioresAd[a.id] || 0)}))
-    .filter(a => a.n > 0);
-  if (!subiram.length) return 'Anúncio não identificado';
-  return subiram.map(a => `Anúncio: ${a.nome}${subiram.length > 1 || a.n > 1 ? ` (+${a.n})` : ''}`).join('\n');
-}
-
-function renderFeed(){
-  $('dica').hidden = true;
-  $('feed').innerHTML = eventos.length
-    ? eventos.map(e=>`<div class="ev" tabindex="0" data-dica="${esc(e.dica)}"><span><b>+${e.n}</b> ${e.n>1?'leads':'lead'} · ${esc(e.unidade)}</span><time>${hora(e.t)}</time></div>`).join('')
-    : `<div class="empty">${FEED_VAZIO}</div>`;
-}
-
-function mostrarDica(e){
-  const ev = e.target.closest('.ev[data-dica]');
-  if (!ev) return;
-  const dica = $('dica'), r = ev.getBoundingClientRect(), aoLado = r.left > 280;
-  dica.textContent = ev.dataset.dica;
-  dica.hidden = false;
-  dica.style.top = `${aoLado ? r.top : r.bottom + 4}px`;
-  dica.style.left = aoLado ? 'auto' : `${r.left}px`;
-  dica.style.right = aoLado ? `${innerWidth - r.left + 8}px` : 'auto';
-}
-const esconderDica = () => { $('dica').hidden = true; };
-$('feed').addEventListener('mouseover', mostrarDica);
-$('feed').addEventListener('focusin', mostrarDica);
-$('feed').addEventListener('mouseout', esconderDica);
-$('feed').addEventListener('focusout', esconderDica);
 
 function render(d){
   const us = d.unidades;
@@ -348,13 +296,11 @@ function render(d){
     const diff = u.leads - (anterior[u.unidade] ?? u.leads);
     if (diff > 0) {
       novos[u.unidade] = diff;
-      const dica = origemDoLead(u);
-      eventos.unshift({unidade:u.unidade, n:diff, t:new Date(), dica});
-      registrar('lead', `+${diff} ${diff>1?'leads':'lead'} em ${u.unidade} · ${dica.replace(/\n/g, ', ')}`);
+      eventos.unshift({unidade:u.unidade, n:diff, t:new Date()});
+      registrar('lead', `+${diff} ${diff>1?'leads':'lead'} em ${u.unidade}`);
     }
   }
   eventos = eventos.slice(0, 60);
-  anterioresAd = Object.fromEntries(ok.flatMap(u => (u.anuncios||[]).map(a => [a.id, a.leads])));
 
   for (const u of us) {
     const erro = u.erro || u.erroStatus;
@@ -393,7 +339,10 @@ function render(d){
   }).join('');
   setTimeout(()=>document.querySelectorAll('.card.flash').forEach(c=>c.classList.remove('flash')), 2500);
 
-  if (Object.keys(novos).length) renderFeed();
+  $('feed').innerHTML = eventos.length
+    ? eventos.map(e=>`<div class="ev"><span><b>+${e.n}</b> ${e.n>1?'leads':'lead'} · ${esc(e.unidade)}</span><time>${hora(e.t)}</time></div>`).join('')
+    : `<div class="empty">${FEED_VAZIO}</div>`;
+
   renderCampanhas();
   anterior = Object.fromEntries(ok.map(u=>[u.unidade,u.leads]));
 }
@@ -539,7 +488,7 @@ function renderEstrategia(d){
 }
 
 async function carregarEstrategia(){
-  if (abaAtual !== 'estrategia' || buscandoEst || document.hidden) return;
+  if (abaAtual !== 'estrategia' || buscandoEst) return;
   buscandoEst = true;
   if (!estCarregada) $('estInfo').textContent = 'Carregando…';
   try {
@@ -550,45 +499,6 @@ async function carregarEstrategia(){
     $('estInfo').textContent = 'Erro ao buscar dados: ' + e.message;
   } finally {
     buscandoEst = false;
-  }
-}
-
-// ---- aba Leads: só o número do WhatsApp, aberto pelo link privado ----
-const INTERVALO_LEADS = 30000;
-const CHAVE_LEADS = PARAMS.get('chave') || '';
-const LEADS_DEMO = [
-  {whatsapp:'5500900000001', em:Date.now()-180000},
-  {whatsapp:'5500900000002', em:Date.now()-900000},
-];
-const telefone = n => {
-  const m = String(n).match(/^55(\d{2})(\d{4,5})(\d{4})$/);
-  return m ? `+55 ${m[1]} ${m[2]}-${m[3]}` : `+${n}`;
-};
-const mostrarLeads = tabelaOrdenavel('leadCab', 'leadLinhas', [
-  {k:'whatsapp', t:'WhatsApp', txt:true},
-], {k:'em', dir:-1}, 'Nenhum lead recebido ainda.', l => `
-  <td class="esq"><a class="num" href="https://wa.me/${encodeURIComponent(l.whatsapp)}" target="_blank" rel="noopener">${esc(telefone(l.whatsapp))}</a></td>`);
-
-function exibirLeads(lista){
-  $('leadsInfo').textContent = lista.length === 1 ? '1 lead' : `${lista.length} leads`;
-  mostrarLeads(lista);
-}
-async function carregarLeads(){
-  if (abaAtual !== 'leads' || document.hidden) return;
-  if (DEMO) { exibirLeads(LEADS_DEMO); return; }
-  if (!CHAVE_LEADS) {
-    $('leadsInfo').textContent = 'Abra esta aba pelo link privado.';
-    mostrarLeads([]);
-    return;
-  }
-  try {
-    const r = await fetch('/api/whatsapp', {cache:'no-store', headers:{'x-chave':CHAVE_LEADS}});
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status);
-    exibirLeads(j.leads);
-  } catch (e) {
-    registrar('erro', 'Falha na aba Leads: ' + e.message);
-    $('leadsInfo').textContent = e.message;
   }
 }
 
@@ -611,11 +521,9 @@ function renderCalendario(){
 function virarDia(){
   registrar('info', `Dia ${dataCurta(isoLocal(new Date(Date.now() - 864e5)))} encerrado`);
   anterior = null;
-  anterioresAd = {};
   eventos = [];
   diaAnterior = new Date().toDateString();
   $('totalS').innerHTML = '&nbsp;';
-  renderFeed();
   renderCalendario();
 }
 
@@ -627,7 +535,6 @@ function agendarVirada(){
 
 async function ciclo(manual){
   if (buscando) return;
-  if (document.hidden && !manual) { timer = setTimeout(ciclo, INTERVALO); return; }   // aba escondida não consulta
   buscando = true;
   clearTimeout(timer);
   if (!DIA && new Date().toDateString() !== diaAnterior) virarDia();
@@ -657,11 +564,9 @@ async function ciclo(manual){
   } finally {
     buscando = false;
     $('atualizar').disabled = false;
-    // Dia encerrado acompanha o consolidado da Meta, que ainda pode mudar, mas sem pressa.
-    timer = setTimeout(ciclo, DIA && ultimoOk ? INTERVALO_DIA_ENCERRADO : INTERVALO);
+    if (!DIA || !ultimoOk) timer = setTimeout(ciclo, INTERVALO);   // dia encerrado só repete se falhar
   }
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { ciclo(); carregarEstrategia(); carregarLeads(); } });
 $('atualizar').onclick = () => { ciclo(true); carregarEstrategia(); };
 if (DEMO) { $('banner').className='banner demo'; $('banner').textContent='Modo demonstração: números fictícios.'; }
 if (DIA) {
@@ -669,16 +574,13 @@ if (DIA) {
   $('totalL').textContent = 'Leads do dia';
   $('feed').innerHTML = `<div class="empty">${FEED_VAZIO}</div>`;
   document.querySelector('[data-aba=estrategia]').hidden = true;
-  document.querySelector('[data-aba=leads]').hidden = true;
 } else {
   agendarVirada();
 }
 renderCalendario();
 ciclo();
 carregarEstrategia();
-carregarLeads();
 setInterval(carregarEstrategia, INTERVALO_ESTRATEGIA);
-setInterval(carregarLeads, INTERVALO_LEADS);
 </script>
 </body>
 </html>
