@@ -162,7 +162,7 @@ module.exports = async (req, res) => {
 
     // Cache curto na CDN do Vercel: várias telas abertas dividem a mesma consulta à Meta.
     const fechado = data && !unidades.some(u => u.erro);
-    res.setHeader('Cache-Control', fechado ? `s-maxage=${CACHE_DIA_ENCERRADO}` : 's-maxage=8, stale-while-revalidate=4');
+    res.setHeader('Cache-Control', fechado ? `s-maxage=${CACHE_DIA_ENCERRADO}` : 's-maxage=25, stale-while-revalidate=5');
     res.status(200).json({ atualizadoEm: new Date().toISOString(), unidades });
   } catch (e) {
     res.status(502).json({ erro: 'Falha ao consultar a Meta: ' + e.message });
