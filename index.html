@@ -21,6 +21,13 @@
   .live{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--mut)}
   .dot{width:7px;height:7px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 0 rgba(34,197,94,.7);animation:pulse 2s infinite}
   .dot.off{background:var(--err);animation:none}
+  .dot.fim{background:var(--mut);animation:none}
+  .cal{display:flex;gap:2px;margin:18px auto 0;width:fit-content;max-width:100%;overflow-x:auto}
+  .cal a,.cal span{display:flex;flex-direction:column;align-items:center;flex:none;min-width:36px;padding:4px 2px;border-radius:6px;color:var(--mut);font-size:12px;text-decoration:none;font-variant-numeric:tabular-nums}
+  .cal small{font-size:9px;letter-spacing:.3px;text-transform:uppercase;opacity:.7}
+  .cal span{opacity:.3}
+  .cal a:hover{background:var(--card);color:var(--txt)}
+  .cal a.on{color:var(--acc);font-weight:600}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,.6)}70%{box-shadow:0 0 0 8px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
   .hdr-r{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
   button{background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:5px 10px;font:500 12px Inter,sans-serif;cursor:pointer}
@@ -111,7 +118,7 @@
 
   <main id="aba-painel">
     <section class="top">
-      <div class="kpi main"><div class="l">Leads hoje</div><div class="v" id="total">–</div><div class="s" id="totalS">&nbsp;</div></div>
+      <div class="kpi main"><div class="l" id="totalL">Leads hoje</div><div class="v" id="total">–</div><div class="s" id="totalS">&nbsp;</div></div>
       <div class="kpi"><div class="l">Investimento</div><div class="v" id="gasto">–</div><div class="s" id="unid">&nbsp;</div></div>
       <div class="kpi"><div class="l">Custo por lead</div><div class="v" id="cpl">–</div><div class="s">média das unidades</div></div>
       <div class="kpi" title="Conversas com 3 ou mais mensagens do cliente ÷ conversas iniciadas."><div class="l">Qualificação</div><div class="v" id="taxa">–</div><div class="s" id="conv">&nbsp;</div></div>
@@ -164,13 +171,23 @@
       <tbody id="logLinhas"></tbody>
     </table></div>
   </main>
+
+  <nav class="cal" id="calendario" aria-label="Dias encerrados"></nav>
 </div>
 
 <script>
 const INTERVALO = 10000;
 const MAX_LOGS = 300;
 const CHAVE_LOGS = 'dash-leads-logs';
-const DEMO = new URLSearchParams(location.search).has('demo');
+const PARAMS = new URLSearchParams(location.search);
+const DEMO = PARAMS.has('demo');
+const isoLocal = d => [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-');
+const dataCurta = iso => `${iso.slice(8)}/${iso.slice(5,7)}`;
+// Com ?dia=AAAA-MM-DD a página mostra um dia encerrado, congelada, sem atualizar.
+const DIA = /^\d{4}-\d{2}-\d{2}$/.test(PARAMS.get('dia') || '') && PARAMS.get('dia') < isoLocal(new Date()) ? PARAMS.get('dia') : null;
+const INICIO_HISTORICO = '2026-11-03';
+const DIAS_CALENDARIO = 14;
+const FEED_VAZIO = DIA ? 'Dia encerrado.' : 'Aguardando novos leads…';
 const brl = v => v == null ? '–' : v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:v>=1000?0:2});
 const hora = d => d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
 const dataHora = d => d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) + ' ' + hora(d);
@@ -189,7 +206,7 @@ let buscando = false;
 let timer = null;
 
 // ---- abas ----
-const ABAS = ['painel','campanhas','estrategia','logs'];
+const ABAS = DIA ? ['painel','campanhas','logs'] : ['painel','campanhas','estrategia','logs'];
 let abaAtual = 'painel';
 function abrirAba(nome){
   const aba = ABAS.includes(nome) ? nome : 'painel';
@@ -256,7 +273,8 @@ async function buscarDemo(){
 // A CDN guarda a resposta por 8 s; a atualização manual fura esse cache.
 async function buscar(manual){
   if (DEMO) return buscarDemo();
-  const r = await fetch('/api/leads' + (manual ? '?t=' + Date.now() : ''), {cache:'no-store'});
+  const url = DIA ? '/api/leads?data=' + DIA : '/api/leads' + (manual ? '?t=' + Date.now() : '');
+  const r = await fetch(url, {cache:'no-store'});
   const j = await r.json();
   if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status);
   return j;
@@ -272,10 +290,6 @@ function render(d){
   const bloqueios = ok.reduce((s,u)=>s+(u.bloqueios||0),0);
   const max = Math.max(1, ...ok.map(u=>u.leads));
   campanhas = ok.flatMap(u => (u.campanhas||[]).map(c => ({...c, unidade:u.unidade})));
-
-  // virada do dia: zera o histórico
-  const hoje = new Date().toDateString();
-  if (hoje !== diaAnterior) { anterior = null; eventos = []; diaAnterior = hoje; }
 
   const novos = {};
   if (anterior) for (const u of ok) {
@@ -318,7 +332,7 @@ function render(d){
       <div class="nm">${esc(u.unidade)}</div>
       <div class="n">${u.leads}</div>
       <div class="meta"><span>${brl(u.gasto)}</span><span>CPL ${cpl}</span></div>
-      <div class="meta"><span>${nCamp} ${nCamp===1?'campanha ativa':'campanhas ativas'}</span></div>
+      <div class="meta"><span>${contarCampanhas(nCamp)}</span></div>
       <div class="bar"><i style="width:${(u.leads/max*100).toFixed(1)}%"></i></div>
       ${novos[u.unidade]?`<span class="plus">+${novos[u.unidade]}</span>`:''}
     </div>`;
@@ -327,7 +341,7 @@ function render(d){
 
   $('feed').innerHTML = eventos.length
     ? eventos.map(e=>`<div class="ev"><span><b>+${e.n}</b> ${e.n>1?'leads':'lead'} · ${esc(e.unidade)}</span><time>${hora(e.t)}</time></div>`).join('')
-    : '<div class="empty">Aguardando novos leads…</div>';
+    : `<div class="empty">${FEED_VAZIO}</div>`;
 
   renderCampanhas();
   anterior = Object.fromEntries(ok.map(u=>[u.unidade,u.leads]));
@@ -365,6 +379,8 @@ function tabelaOrdenavel(idCab, idCorpo, colunas, inicial, vazio, celulas){
 
 // ---- aba Campanhas: só campanhas ativas com a tag abaixo ----
 const TAG_CAMPANHA = '[MENSAGENS]';
+// Dia encerrado não tem status de campanha, então não dá para chamar de ativas.
+const contarCampanhas = n => `${n} ${n===1 ? 'campanha' : 'campanhas'}${DIA ? '' : (n===1 ? ' ativa' : ' ativas')}`;
 const campanhaExibida = c => c.ativa !== false && c.nome.toUpperCase().includes(TAG_CAMPANHA);
 const mostrarCampanhas = tabelaOrdenavel('campCab', 'campLinhas', [
   {k:'nome', t:'Campanha', txt:true},
@@ -382,7 +398,7 @@ function renderCampanhas(){
   const linhas = campanhas
     .filter(campanhaExibida)
     .map(c => ({...c, cpl: razao(c.gasto, c.leads)}));
-  $('campInfo').textContent = linhas.length === 1 ? '1 campanha ativa' : `${linhas.length} campanhas ativas`;
+  $('campInfo').textContent = contarCampanhas(linhas.length);
   mostrarCampanhas(linhas);
 }
 
@@ -486,10 +502,42 @@ async function carregarEstrategia(){
   }
 }
 
+// ---- calendário de dias encerrados e virada à meia-noite ----
+function renderCalendario(){
+  const agora = new Date();
+  const dias = Array.from({length:DIAS_CALENDARIO}, (_,i) => new Date(agora.getFullYear(), agora.getMonth(), agora.getDate() - (DIAS_CALENDARIO-1-i)));
+  $('calendario').innerHTML = dias.map((d,i) => {
+    const iso = isoLocal(d), eHoje = i === DIAS_CALENDARIO-1;
+    const semana = eHoje ? 'hoje' : d.toLocaleDateString('pt-BR',{weekday:'short'}).replace('.','');
+    const conteudo = `<small>${semana}</small>${iso.slice(8)}`;
+    if (!eHoje && iso < INICIO_HISTORICO) return `<span>${conteudo}</span>`;
+    const ativo = eHoje ? !DIA : iso === DIA;
+    const href = eHoje ? location.pathname + (DEMO ? '?demo' : '') : `?dia=${iso}${DEMO ? '&demo' : ''}`;
+    return `<a href="${href}" class="${ativo?'on':''}" title="${d.toLocaleDateString('pt-BR')}" ${ativo?'aria-current="date"':''}>${conteudo}</a>`;
+  }).join('');
+  $('calendario').scrollLeft = $('calendario').scrollWidth;   // no celular, começa pelo dia de hoje
+}
+
+function virarDia(){
+  registrar('info', `Dia ${dataCurta(isoLocal(new Date(Date.now() - 864e5)))} encerrado`);
+  anterior = null;
+  eventos = [];
+  diaAnterior = new Date().toDateString();
+  $('totalS').innerHTML = '&nbsp;';
+  renderCalendario();
+}
+
+function agendarVirada(){
+  const a = new Date();
+  const meiaNoite = new Date(a.getFullYear(), a.getMonth(), a.getDate()+1, 0, 0, 1);
+  setTimeout(() => { ciclo(true); agendarVirada(); }, meiaNoite - a);
+}
+
 async function ciclo(manual){
   if (buscando) return;
   buscando = true;
   clearTimeout(timer);
+  if (!DIA && new Date().toDateString() !== diaAnterior) virarDia();
   $('atualizar').disabled = true;
   const inicio = performance.now();
   try {
@@ -498,9 +546,14 @@ async function ciclo(manual){
     ultimoOk = new Date();
     const ms = Math.round(performance.now() - inicio);
     const nOk = d.unidades.filter(u => u.leads != null).length;
-    registrar(manual ? 'manual' : 'ok', `${nOk} de ${d.unidades.length} unidades · ${campanhas.length} campanhas · ${ms} ms`);
-    $('dot').classList.remove('off');
-    $('status').textContent = `Ao vivo · atualizado às ${hora(ultimoOk)}`;
+    if (DIA) {
+      $('dot').classList.add('fim');
+      $('status').textContent = `Encerrado · resultado de ${dataCurta(DIA)} às 23:59:59`;
+    } else {
+      registrar(manual ? 'manual' : 'ok', `${nOk} de ${d.unidades.length} unidades · ${campanhas.length} campanhas · ${ms} ms`);
+      $('dot').classList.remove('off');
+      $('status').textContent = `Ao vivo · atualizado às ${hora(ultimoOk)}`;
+    }
     $('banner').style.display = DEMO ? 'block' : 'none';
   } catch (e) {
     registrar('erro', 'Falha na atualização: ' + e.message);
@@ -511,11 +564,20 @@ async function ciclo(manual){
   } finally {
     buscando = false;
     $('atualizar').disabled = false;
-    timer = setTimeout(ciclo, INTERVALO);
+    if (!DIA || !ultimoOk) timer = setTimeout(ciclo, INTERVALO);   // dia encerrado só repete se falhar
   }
 }
 $('atualizar').onclick = () => { ciclo(true); carregarEstrategia(); };
 if (DEMO) { $('banner').className='banner demo'; $('banner').textContent='Modo demonstração: números fictícios.'; }
+if (DIA) {
+  $('atualizar').hidden = true;
+  $('totalL').textContent = 'Leads do dia';
+  $('feed').innerHTML = `<div class="empty">${FEED_VAZIO}</div>`;
+  document.querySelector('[data-aba=estrategia]').hidden = true;
+} else {
+  agendarVirada();
+}
+renderCalendario();
 ciclo();
 carregarEstrategia();
 setInterval(carregarEstrategia, INTERVALO_ESTRATEGIA);

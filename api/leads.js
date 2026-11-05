@@ -11,6 +11,12 @@ const GRAPH_VERSION = process.env.META_API_VERSION || 'v24.0';
 const VALIDADE_STATUS = 5 * 60 * 1000;
 let statusGuardado = null;   // {em, porConta: Map(adAccountId → {ativas} ou {erro})}
 
+// Dia encerrado: só aceita datas anteriores a hoje no horário de Brasília. O valor fica em cache
+// por 1 h porque a Meta ainda pode consolidar conversas depois da virada.
+const CACHE_DIA_ENCERRADO = 3600;
+const hojeBrasil = () => new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
+const dataValida = v => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)) && v < hojeBrasil();
+
 // Tipos de ação contados como lead, em ordem de prioridade (o primeiro encontrado vence,
 // para não contar o mesmo lead duas vezes). Pode ser sobrescrito por LEAD_ACTION_TYPES.
 const LEAD_TYPES = (process.env.LEAD_ACTION_TYPES ||
@@ -57,17 +63,26 @@ module.exports = async (req, res) => {
   }
 
   const contas = CONTAS.filter(c => c.enabled);
-  const agora = Date.now();
-  const statusValido = statusGuardado && agora - statusGuardado.em < VALIDADE_STATUS;
+  const data = req.query?.data || null;
+  if (data && !dataValida(data)) {
+    res.status(400).json({ erro: 'Data inválida.' });
+    return;
+  }
 
-  // Resultados de hoje de cada conta e, quando vencido, o status. Os totais da unidade
+  const agora = Date.now();
+  const atualizarStatus = !data && !(statusGuardado && agora - statusGuardado.em < VALIDADE_STATUS);
+  const periodo = data
+    ? `time_range=${encodeURIComponent(JSON.stringify({ since: data, until: data }))}`
+    : 'date_preset=today';
+
+  // Resultados do dia de cada conta e, quando vencido, o status. Os totais da unidade
   // continuam somando tudo; o status só marca cada campanha com `ativa`.
   const batch = [
     ...contas.map(c => ({
       method: 'GET',
-      relative_url: `${c.adAccountId}/insights?level=campaign&date_preset=today&limit=200&fields=campaign_id,campaign_name,actions,spend,account_currency`,
+      relative_url: `${c.adAccountId}/insights?level=campaign&${periodo}&limit=200&fields=campaign_id,campaign_name,actions,spend,account_currency`,
     })),
-    ...(statusValido ? [] : contas.map(c => ({
+    ...(!atualizarStatus ? [] : contas.map(c => ({
       method: 'GET',
       relative_url: `${c.adAccountId}/campaigns?effective_status=${encodeURIComponent('["ACTIVE"]')}&fields=id&limit=500`,
     }))),
@@ -92,7 +107,7 @@ module.exports = async (req, res) => {
       try { return item && item.body ? JSON.parse(item.body) : null; } catch (_) { return null; }
     };
 
-    if (!statusValido) {
+    if (atualizarStatus) {
       const anterior = statusGuardado?.porConta;
       statusGuardado = {
         em: agora,
@@ -121,7 +136,8 @@ module.exports = async (req, res) => {
         };
       }
       // Se o status falhar, `ativa` fica null e a campanha segue visível, com o erro nos logs.
-      const { ativas, erro: erroStatus = null } = statusGuardado.porConta.get(c.adAccountId);
+      // Dia encerrado não tem status: a Meta só informa o status de agora.
+      const { ativas, erro: erroStatus = null } = data ? {} : statusGuardado.porConta.get(c.adAccountId);
 
       const linhas = parsed.data || [];
       const campanhas = linhas.map(row => ({
@@ -145,7 +161,8 @@ module.exports = async (req, res) => {
     });
 
     // Cache curto na CDN do Vercel: várias telas abertas dividem a mesma consulta à Meta.
-    res.setHeader('Cache-Control', 's-maxage=8, stale-while-revalidate=4');
+    const fechado = data && !unidades.some(u => u.erro);
+    res.setHeader('Cache-Control', fechado ? `s-maxage=${CACHE_DIA_ENCERRADO}` : 's-maxage=8, stale-while-revalidate=4');
     res.status(200).json({ atualizadoEm: new Date().toISOString(), unidades });
   } catch (e) {
     res.status(502).json({ erro: 'Falha ao consultar a Meta: ' + e.message });
