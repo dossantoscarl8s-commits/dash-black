@@ -237,7 +237,11 @@ function abrirAba(nome){
     b.setAttribute('aria-selected', b.dataset.aba === aba);
   });
 }
-document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { location.hash = b.dataset.aba; });
+// Estratégia só existe ao vivo: em um dia encerrado, o botão leva para a aba de hoje.
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => {
+  if (ABAS.includes(b.dataset.aba)) location.hash = b.dataset.aba;
+  else location.href = location.pathname + (DEMO ? '?demo' : '') + '#' + b.dataset.aba;
+});
 addEventListener('hashchange', () => { abrirAba(location.hash.slice(1)); carregarEstrategia(); });
 abrirAba(location.hash.slice(1));
 
@@ -646,7 +650,6 @@ if (DEMO) { $('banner').className='banner demo'; $('banner').textContent='Modo d
 if (DIA) {
   $('atualizar').hidden = true;
   $('totalL').textContent = 'Leads do dia';
-  document.querySelector('[data-aba=estrategia]').hidden = true;
 } else {
   agendarVirada();
 }
