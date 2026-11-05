@@ -64,8 +64,10 @@
   .ev b{color:var(--acc)} .ev time{color:var(--mut);font-size:11px;white-space:nowrap}
   .ev[data-dica]{cursor:help}
   .dica{position:fixed;z-index:5;max-width:260px;background:var(--card2);border:1px solid #3a3a40;border-radius:7px;padding:6px 9px;font-size:11px;line-height:1.4;white-space:pre-line;box-shadow:0 6px 18px rgba(0,0,0,.45)}
-  .feed-pag{display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid var(--line);margin-top:4px;padding-top:7px;font-size:11px;color:var(--mut);font-variant-numeric:tabular-nums}
-  .feed-pag button{padding:2px 9px}
+  .feed-pag{display:flex;align-items:center;justify-content:center;gap:2px;border-top:1px solid var(--line);margin-top:4px;padding-top:7px;font-size:11px;color:var(--mut);font-variant-numeric:tabular-nums}
+  .feed-pag button{min-width:22px;padding:2px 4px;border-color:transparent;background:none;color:var(--mut);font-size:11px}
+  .feed-pag button:hover:not(:disabled){color:var(--txt);background:var(--card2)}
+  .feed-pag button.on{color:var(--acc);font-weight:700}
   .empty{color:var(--mut);font-size:12px;padding:6px 0}
   .banner{display:none;background:#2a1215;border:1px solid #5b1d22;color:#fecaca;padding:6px 11px;border-radius:8px;margin-bottom:10px;font-size:12px}
   .demo{background:#2a2410;border-color:#5b4d1d;color:#fde68a}
@@ -325,9 +327,18 @@ function renderFeed(){
     ? lista.slice(inicio, inicio + POR_PAGINA).map(e => `<div class="ev" tabindex="0" data-dica="${esc(e.dica || 'Anúncio não identificado')}"><span><b>+${e.n}</b> ${e.n>1?'leads':'lead'} · ${esc(e.unidade)}</span><time>${momento(e.t)}</time></div>`).join('')
     : `<div class="empty">${FEED_VAZIO}</div>`;
   $('feedPag').hidden = paginas < 2;
+  const numero = p => `<button data-p="${p}" class="${p===paginaFeed?'on':''}" ${p===paginaFeed?'aria-current="page"':''}>${p}</button>`;
   $('feedPag').innerHTML = `<button data-p="${paginaFeed-1}" aria-label="Página anterior" ${paginaFeed===1?'disabled':''}>‹</button>
-    <span>${paginaFeed} de ${paginas}</span>
+    ${paginasVisiveis(paginaFeed, paginas).map(p => p === '…' ? '<span>…</span>' : numero(p)).join('')}
     <button data-p="${paginaFeed+1}" aria-label="Próxima página" ${paginaFeed===paginas?'disabled':''}>›</button>`;
+}
+
+// Quatro páginas em volta da atual, reticências e a última: 1 2 3 4 … 9.
+function paginasVisiveis(atual, total){
+  if (total <= 5) return Array.from({length:total}, (_,i) => i+1);
+  const inicio = Math.min(Math.max(1, atual-1), total-4);
+  const janela = [0,1,2,3].map(i => inicio+i);
+  return inicio+3 < total-1 ? [...janela, '…', total] : [...janela, total];
 }
 $('feedPag').onclick = e => {
   const botao = e.target.closest('button');
@@ -350,7 +361,20 @@ $('feed').addEventListener('focusin', mostrarDica);
 $('feed').addEventListener('mouseout', esconderDica);
 $('feed').addEventListener('focusout', esconderDica);
 
+// Abas abertas ao mesmo tempo dividem o histórico: cada leitura parte do que está guardado,
+// para uma aba não apagar as chegadas da outra nem contar o mesmo lead duas vezes.
+function sincronizarGuardado(){
+  if (DEMO || DIA) return;
+  eventos = lerGuardado(CHAVE_EVENTOS, eventos);
+  const base = lerGuardado(CHAVE_BASE, null);
+  if (base?.dia === isoLocal(new Date())) { anterior = base.leads; anterioresAd = base.ads; }
+}
+addEventListener('storage', e => {
+  if (e.key === CHAVE_EVENTOS && !DEMO) { eventos = lerGuardado(CHAVE_EVENTOS, eventos); renderFeed(); }
+});
+
 function render(d){
+  sincronizarGuardado();
   const us = d.unidades;
   const ok = us.filter(u => u.leads != null);
   const total = ok.reduce((s,u)=>s+u.leads,0);
