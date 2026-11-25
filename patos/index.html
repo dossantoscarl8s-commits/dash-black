@@ -6,8 +6,8 @@
   <meta name="robots" content="noindex">
   <title>Redirecionando…</title>
   <script>
-    // Troque o # pela URL completa de destino (com https://).
-    var DESTINO = '#';
+    // URL completa de destino (com https://). Com # a página não redireciona.
+    var DESTINO = 'https://wa.me/5583981210770?text=Ol%C3%A1!%20Gostaria%20de%20aproveitar%20as%20ofertas%20da%20Black%20Week%20da%20BotoEsthetic%20Patos!';
 
     // Registra o acesso. O keepalive conclui o envio mesmo com a página já redirecionando.
     var params = new URLSearchParams(location.search);
@@ -22,15 +22,8 @@
       }).catch(function () {});
     } catch (_) {}
 
-    if (DESTINO !== '#') {
-      var url = new URL(DESTINO);
-      // Repassa UTMs, fbclid etc. para o destino.
-      params.forEach(function (valor, chave) {
-        url.searchParams.set(chave, valor);
-      });
-      if (!url.hash) url.hash = location.hash;
-      location.replace(url.href);
-    }
+    // Os parâmetros do link não seguem adiante: o WhatsApp não os usa e alterariam a mensagem.
+    if (DESTINO !== '#') location.replace(DESTINO);
   </script>
 </head>
 <body>
