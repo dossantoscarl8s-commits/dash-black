@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Redirecionando…</title>
+  <script>
+    // Troque o # pela URL completa de destino (com https://).
+    var DESTINO = '#';
+
+    if (DESTINO !== '#') {
+      var url = new URL(DESTINO);
+      // Repassa UTMs, fbclid etc. para o destino.
+      new URLSearchParams(location.search).forEach(function (valor, chave) {
+        url.searchParams.set(chave, valor);
+      });
+      if (!url.hash) url.hash = location.hash;
+      location.replace(url.href);
+    }
+  </script>
+</head>
+<body>
+  <p>Redirecionando…</p>
+</body>
+</html>
