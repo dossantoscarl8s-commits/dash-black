@@ -2,7 +2,7 @@
 // POST registra um acesso ao link rastreado. GET devolve os totais para o modal do painel.
 // Os acessos ficam numa planilha Google, pelo Apps Script de planilha/acessos.gs.
 
-const PLANILHA_URL = '';   // URL do app da Web (https://script.google.com/macros/s/.../exec)
+const PLANILHA_URL = process.env.PLANILHA_URL || '';   // URL /exec do app da Web, só no Vercel
 
 const LINKS = ['patos'];
 const UTMS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
@@ -81,7 +81,7 @@ async function resumir(req, res) {
 module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   if (!['GET', 'POST'].includes(req.method)) { res.status(405).json({ erro: 'Método não permitido.' }); return; }
-  if (!PLANILHA_URL) { res.status(503).json({ erro: 'Rastreio ainda não configurado: falta a URL da planilha.' }); return; }
+  if (!PLANILHA_URL) { res.status(503).json({ erro: 'Rastreio ainda não configurado: falta PLANILHA_URL no Vercel.' }); return; }
   try {
     await (req.method === 'POST' ? registrar : resumir)(req, res);
   } catch (e) {
