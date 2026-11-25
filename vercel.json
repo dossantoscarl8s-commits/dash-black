@@ -1,5 +1,6 @@
 {
   "functions": {
-    "api/estrategia.js": { "maxDuration": 30 }
+    "api/estrategia.js": { "maxDuration": 30 },
+    "api/acessos.js": { "maxDuration": 30 }
   }
 }

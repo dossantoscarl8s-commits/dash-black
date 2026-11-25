@@ -1,13 +1,19 @@
 // Rota serverless (Vercel): /api/acessos
 // POST registra um acesso ao link rastreado. GET devolve os totais para o modal do painel.
-// A chave do Supabase fica só no servidor, em SUPABASE_URL e SUPABASE_SECRET_KEY.
+// Os acessos ficam numa planilha Google, pelo Apps Script de planilha/acessos.gs.
+
+const PLANILHA_URL = '';   // URL do app da Web (https://script.google.com/macros/s/.../exec)
 
 const LINKS = ['patos'];
 const UTMS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
+const COLUNAS = ['criado_em', 'link', ...UTMS, 'cidade', 'uf'];
 const MAX_TEXTO = 200;
+const DIA_MS = 864e5;
 
 const texto = v => (typeof v === 'string' && v.trim() ? v.trim().slice(0, MAX_TEXTO) : null);
 const ehData = v => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v));
+const inicioDoDia = (data, dias = 0) => new Date(Date.parse(`${data}T00:00:00-03:00`) + dias * DIA_MS).toISOString();
+const horaBrasil = iso => new Date(Date.parse(iso) - 3 * 3600 * 1000).getUTCHours();
 
 // O Vercel informa a cidade aproximada pelo IP, codificada na URL. O IP não é guardado.
 function cabecalho(req, nome) {
@@ -16,13 +22,20 @@ function cabecalho(req, nome) {
   try { return texto(decodeURIComponent(v)); } catch (_) { return texto(v); }
 }
 
-function supabase(caminho, corpo) {
-  const chave = process.env.SUPABASE_SECRET_KEY;
-  const headers = { apikey: chave, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
-  if (!chave.startsWith('sb_')) headers.Authorization = `Bearer ${chave}`;   // chave service_role antiga (JWT)
-  return fetch(`${process.env.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/${caminho}`, {
-    method: 'POST', headers, body: JSON.stringify(corpo), signal: AbortSignal.timeout(8000),
-  });
+async function planilha(busca, opcoes) {
+  const r = await fetch(PLANILHA_URL + busca, { ...opcoes, signal: AbortSignal.timeout(20000) });
+  const corpo = await r.text();
+  try { return JSON.parse(corpo); } catch (_) { throw new Error(`a planilha não respondeu como esperado (${r.status})`); }
+}
+
+function contar(lista, campos) {
+  const grupos = new Map();
+  for (const x of lista) {
+    const chave = JSON.stringify(campos.map(c => x[c]));
+    if (!grupos.has(chave)) grupos.set(chave, { ...Object.fromEntries(campos.map(c => [c, x[c]])), n: 0 });
+    grupos.get(chave).n += 1;
+  }
+  return [...grupos.values()].sort((a, b) => b.n - a.n).slice(0, 50);
 }
 
 async function registrar(req, res) {
@@ -39,8 +52,8 @@ async function registrar(req, res) {
     uf: cabecalho(req, 'x-vercel-ip-country-region'),
   };
   for (const k of UTMS) acesso[k] = texto(corpo[k]);
-  const r = await supabase('acessos', acesso);
-  if (!r.ok) throw new Error(`banco respondeu ${r.status}`);
+  const r = await planilha('', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(acesso) });
+  if (!r.ok) throw new Error('a planilha não confirmou a gravação');
   res.status(204).end();
 }
 
@@ -48,18 +61,27 @@ async function resumir(req, res) {
   const { link = 'patos', de, ate } = req.query || {};
   if (!LINKS.includes(link)) { res.status(400).json({ erro: 'Link inválido.' }); return; }
   if ((de && !ehData(de)) || (ate && !ehData(ate))) { res.status(400).json({ erro: 'Data inválida.' }); return; }
-  const r = await supabase('rpc/resumo_acessos', { p_link: link, p_de: de || null, p_ate: ate || null });
-  if (!r.ok) throw new Error(`banco respondeu ${r.status}`);
-  res.status(200).json(await r.json());
+  const q = new URLSearchParams({ link });
+  if (de) q.set('de', inicioDoDia(de));
+  if (ate) q.set('ate', inicioDoDia(ate, 1));
+  const { linhas } = await planilha('?' + q);
+  if (!Array.isArray(linhas)) throw new Error('a planilha não devolveu os acessos');
+
+  const acessos = linhas.map(l => Object.fromEntries(COLUNAS.map((c, i) => [c, l[i] || null])));
+  const horas = contar(acessos.map(a => ({ hora: horaBrasil(a.criado_em) })), ['hora']);
+  res.status(200).json({
+    total: acessos.length,
+    horas,
+    utms: contar(acessos, UTMS),
+    cidades: contar(acessos, ['cidade', 'uf']),
+    ultimos: acessos.slice(-50).reverse(),
+  });
 }
 
 module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   if (!['GET', 'POST'].includes(req.method)) { res.status(405).json({ erro: 'Método não permitido.' }); return; }
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SECRET_KEY) {
-    res.status(503).json({ erro: 'Rastreio ainda não configurado: faltam SUPABASE_URL e SUPABASE_SECRET_KEY no Vercel.' });
-    return;
-  }
+  if (!PLANILHA_URL) { res.status(503).json({ erro: 'Rastreio ainda não configurado: falta a URL da planilha.' }); return; }
   try {
     await (req.method === 'POST' ? registrar : resumir)(req, res);
   } catch (e) {
