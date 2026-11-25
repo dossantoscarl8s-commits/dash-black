@@ -9,10 +9,23 @@
     // Troque o # pela URL completa de destino (com https://).
     var DESTINO = '#';
 
+    // Registra o acesso. O keepalive conclui o envio mesmo com a página já redirecionando.
+    var params = new URLSearchParams(location.search);
+    var acesso = { link: 'patos' };
+    ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'].forEach(function (k) {
+      if (params.get(k)) acesso[k] = params.get(k).slice(0, 200);
+    });
+    try {
+      fetch('/api/acessos', {
+        method: 'POST', keepalive: true,
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(acesso)
+      }).catch(function () {});
+    } catch (_) {}
+
     if (DESTINO !== '#') {
       var url = new URL(DESTINO);
       // Repassa UTMs, fbclid etc. para o destino.
-      new URLSearchParams(location.search).forEach(function (valor, chave) {
+      params.forEach(function (valor, chave) {
         url.searchParams.set(chave, valor);
       });
       if (!url.hash) url.hash = location.hash;

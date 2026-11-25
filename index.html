@@ -96,6 +96,14 @@
   .tag{display:inline-block;min-width:62px;text-align:center;font-size:10px;font-weight:700;letter-spacing:.4px;padding:1px 6px;border-radius:5px;background:var(--card2);color:var(--mut)}
   .tag.lead{color:var(--acc)} .tag.erro{color:var(--err)} .tag.manual,.tag.info{color:var(--txt)}
   td.msg{text-align:left;white-space:normal;min-width:260px;width:100%}
+  dialog{width:min(94vw,820px);max-height:88vh;padding:14px 16px;background:var(--bg);color:var(--txt);border:1px solid #3a3a40;border-radius:12px;overflow:auto}
+  dialog::backdrop{background:rgba(0,0,0,.65)}
+  dialog h2{font-size:15px;margin:0}
+  .painel-ac{display:flex;justify-content:flex-end;margin-bottom:8px}
+  .horas{display:flex;align-items:flex-end;gap:3px;height:90px}
+  .horas div{flex:1;min-width:0;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;font-size:9px;color:var(--mut)}
+  .horas i{width:100%;background:var(--acc2);border-radius:2px 2px 0 0}
+  dialog .tabela{max-height:220px}
   @media (max-width:1000px){.top{grid-template-columns:repeat(2,1fr)}.kpi.main{grid-column:1/-1}.main-grid{grid-template-columns:1fr}.feed{max-height:none}}
   @media (max-width:1000px){.wrap{width:auto;padding:12px 16px 20px}}
   @media (max-width:860px){.tabela.aberta{overflow-x:auto}}
@@ -123,6 +131,7 @@
   <div class="banner" id="banner"></div>
 
   <main id="aba-painel">
+    <div class="painel-ac"><button id="abrirAcessos" aria-haspopup="dialog">Acessos do link /patos/</button></div>
     <section class="top">
       <div class="kpi main"><div class="l" id="totalL">Leads hoje</div><div class="v" id="total">–</div><div class="s" id="totalS">&nbsp;</div></div>
       <div class="kpi"><div class="l">Investimento</div><div class="v" id="gasto">–</div><div class="s" id="unid">&nbsp;</div></div>
@@ -180,6 +189,14 @@
 
   <nav class="cal" id="calendario" aria-label="Dias encerrados"></nav>
 </div>
+<dialog id="acessos" aria-labelledby="acTitulo">
+  <div class="bar-acoes"><h2 id="acTitulo">Acessos · /patos/</h2><button id="fecharAcessos">Fechar</button></div>
+  <div class="bar-acoes">
+    <div class="filtros" id="acFiltros"></div>
+    <button id="acAtualizar">↻ Atualizar</button>
+  </div>
+  <div id="acCorpo" aria-live="polite"></div>
+</dialog>
 <div class="dica" id="dica" role="tooltip" hidden></div>
 
 <script>
@@ -596,6 +613,67 @@ async function carregarEstrategia(){
     buscandoEst = false;
   }
 }
+
+// ---- modal de acessos do link rastreado ----
+const diasAtras = n => { const d = new Date((DIA || isoLocal(new Date())) + 'T12:00:00'); d.setDate(d.getDate() - n); return isoLocal(d); };
+const PERIODOS_AC = [
+  {k:'dia', t:DIA ? dataCurta(DIA) : 'Hoje', de:() => diasAtras(0)},
+  {k:'7', t:'7 dias', de:() => diasAtras(6)},
+  {k:'30', t:'30 dias', de:() => diasAtras(29)},
+  {k:'tudo', t:'Tudo', de:() => null},
+];
+let periodoAc = 'dia';
+let pedidoAc = 0;
+const NOMES_UTM = ['utm_source','utm_medium','utm_campaign','utm_content','utm_term'];
+const rotuloUtm = x => NOMES_UTM.map(k => x[k]).filter(Boolean).join(' / ') || 'Sem UTM';
+const rotuloCidade = x => x.cidade ? x.cidade + (x.uf ? ' - ' + x.uf : '') : 'Não identificada';
+
+function demoAcessos(){
+  const cidades = [{cidade:'Patos',uf:'PB'},{cidade:'João Pessoa',uf:'PB'},{cidade:'Campina Grande',uf:'PB'}];
+  const ultimos = Array.from({length:40}, (_,i) => ({criado_em:new Date(Date.now()-i*13*6e4).toISOString(), utm_source:i%2?'instagram':null, utm_campaign:i%2?'demo':null, ...cidades[i%3]}));
+  const contar = (lista, chave) => Object.values(lista.reduce((m,x) => { const k = chave(x); if (!m[k]) m[k] = {...x, n:0}; m[k].n++; return m; }, {})).sort((a,b) => b.n-a.n);
+  return {total:40, ultimos, utms:contar(ultimos, rotuloUtm), cidades:contar(ultimos, rotuloCidade),
+    horas:contar(ultimos.map(x => ({hora:new Date(x.criado_em).getHours()})), x => x.hora)};
+}
+
+function renderAcessos(d){
+  const porHora = Array(24).fill(0);
+  d.horas.forEach(h => { porHora[h.hora] = h.n; });
+  const max = Math.max(1, ...porHora);
+  const tabela = (cab, linhas) => `<div class="tabela"><table><thead><tr>${cab.map(c => `<th class="${c==='Acessos'?'':'esq'}">${c}</th>`).join('')}</tr></thead><tbody>${linhas.join('')}</tbody></table></div>`;
+  const ranking = (titulo, lista, rotulo) => tabela([titulo, 'Acessos'], lista.map(x => `<tr><td class="esq nome">${esc(rotulo(x))}</td><td class="forte">${inteiro(x.n)}</td></tr>`));
+  $('acCorpo').innerHTML = `<div class="kpi main"><div class="l">Acessos</div><div class="v">${inteiro(d.total)}</div></div>` + (!d.total
+    ? '<div class="empty">Nenhum acesso neste período.</div>'
+    : `<h3 class="secao">Por hora</h3><div class="horas">${porHora.map((n,h) => `<div title="${h}h: ${n}">${n || ''}<i style="height:${(n/max*60).toFixed(1)}px"></i>${h}</div>`).join('')}</div>
+      <h3 class="secao">Por UTM</h3>${ranking('UTM', d.utms, rotuloUtm)}
+      <h3 class="secao">Por cidade (aproximada)</h3>${ranking('Cidade', d.cidades, rotuloCidade)}
+      <h3 class="secao">Últimos 50 acessos</h3>${tabela(['Horário','UTM','Cidade'], d.ultimos.map(x => `<tr><td class="esq">${dataHora(new Date(x.criado_em))}</td><td class="esq nome">${esc(rotuloUtm(x))}</td><td class="esq">${esc(rotuloCidade(x))}</td></tr>`))}`);
+}
+
+async function carregarAcessos(){
+  const pedido = ++pedidoAc;   // só vale a resposta do último período escolhido
+  $('acFiltros').innerHTML = PERIODOS_AC.map(p => `<button data-p="${p.k}" class="${p.k===periodoAc?'on':''}" aria-pressed="${p.k===periodoAc}">${p.t}</button>`).join('');
+  $('acCorpo').innerHTML = '<div class="empty">Carregando…</div>';
+  try {
+    let d;
+    if (DEMO) d = demoAcessos();
+    else {
+      const de = PERIODOS_AC.find(p => p.k === periodoAc).de();
+      const q = new URLSearchParams({link:'patos'});
+      if (de) { q.set('de', de); q.set('ate', diasAtras(0)); }
+      const r = await fetch('/api/acessos?' + q, {cache:'no-store'});
+      d = await r.json();
+      if (!r.ok) throw new Error(d.erro || 'Erro ' + r.status);
+    }
+    if (pedido === pedidoAc) renderAcessos(d);
+  } catch (e) {
+    if (pedido === pedidoAc) $('acCorpo').innerHTML = `<div class="empty">${esc(e.message)}</div>`;
+  }
+}
+$('abrirAcessos').onclick = () => { $('acessos').showModal(); carregarAcessos(); };
+$('fecharAcessos').onclick = () => $('acessos').close();
+$('acAtualizar').onclick = carregarAcessos;
+$('acFiltros').onclick = e => { const b = e.target.closest('button'); if (b) { periodoAc = b.dataset.p; carregarAcessos(); } };
 
 // ---- calendário de dias encerrados e virada à meia-noite ----
 function renderCalendario(){

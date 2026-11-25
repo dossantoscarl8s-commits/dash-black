@@ -5,6 +5,8 @@
 - Calendário no rodapé: à meia-noite o painel zera e o dia anterior fica disponível em `?dia=AAAA-MM-DD`, congelado.
 - `api/estrategia.js`: rota da aba Estratégia (orçamento, alcance, frequência e anúncios). Só roda com a aba aberta e os dados ficam até 5 min em cache. Com `?data=AAAA-MM-DD`, traz o dia encerrado, com o orçamento pela configuração atual.
 - Chegadas recentes: 15 leads por tela, com o anúncio em tooltip. Ficam guardadas no navegador até a migração para o Supabase.
+- `patos/index.html`: redirecionador rastreado (`/patos/`); o destino fica em `DESTINO`.
+- `api/acessos.js`: registra e resume os acessos (quantidade, UTM, hora e cidade). Precisa de `SUPABASE_URL` e `SUPABASE_SECRET_KEY` no Vercel e do SQL em `supabase/acessos.sql`.
 - `lib/contas.js`: lista de unidades e contas.
 
 ## Publicar no Vercel
