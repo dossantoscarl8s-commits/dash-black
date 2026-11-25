@@ -96,7 +96,7 @@
   .tag{display:inline-block;min-width:62px;text-align:center;font-size:10px;font-weight:700;letter-spacing:.4px;padding:1px 6px;border-radius:5px;background:var(--card2);color:var(--mut)}
   .tag.lead{color:var(--acc)} .tag.erro{color:var(--err)} .tag.manual,.tag.info{color:var(--txt)}
   td.msg{text-align:left;white-space:normal;min-width:260px;width:100%}
-  dialog{width:min(94vw,820px);max-height:88vh;padding:14px 16px;background:var(--bg);color:var(--txt);border:1px solid #3a3a40;border-radius:12px;overflow:auto}
+  dialog{width:min(94vw,1000px);max-height:88vh;padding:14px 16px;background:var(--bg);color:var(--txt);border:1px solid #3a3a40;border-radius:12px;overflow:auto}
   dialog::backdrop{background:rgba(0,0,0,.65)}
   dialog h2{font-size:15px;margin:0}
   .painel-ac{display:flex;justify-content:flex-end;margin-bottom:8px}
@@ -104,6 +104,9 @@
   .horas div{flex:1;min-width:0;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;font-size:9px;color:var(--mut)}
   .horas i{width:100%;background:var(--acc2);border-radius:2px 2px 0 0}
   dialog .tabela{max-height:220px}
+  dialog .top{grid-template-columns:repeat(3,1fr);margin-bottom:0;border:0;padding:0}
+  dialog .top .kpi.main{grid-column:auto}
+  .ac-grupos{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:0 10px}
   @media (max-width:1000px){.top{grid-template-columns:repeat(2,1fr)}.kpi.main{grid-column:1/-1}.main-grid{grid-template-columns:1fr}.feed{max-height:none}}
   @media (max-width:1000px){.wrap{width:auto;padding:12px 16px 20px}}
   @media (max-width:860px){.tabela.aberta{overflow-x:auto}}
@@ -193,6 +196,7 @@
   <div class="bar-acoes"><h2 id="acTitulo">Acessos · /patos/</h2><button id="fecharAcessos">Fechar</button></div>
   <div class="bar-acoes">
     <div class="filtros" id="acFiltros"></div>
+    <div class="filtros" id="acTipos"></div>
     <button id="acAtualizar">↻ Atualizar</button>
   </div>
   <div id="acCorpo" aria-live="polite"></div>
@@ -622,44 +626,62 @@ const PERIODOS_AC = [
   {k:'30', t:'30 dias', de:() => diasAtras(29)},
   {k:'tudo', t:'Tudo', de:() => null},
 ];
+const TIPOS_AC = [{k:'pessoas', t:'Prováveis pessoas'}, {k:'robos', t:'Prováveis robôs'}, {k:'todos', t:'Todos'}];
 let periodoAc = 'dia';
+let tipoAc = 'pessoas';
 let pedidoAc = 0;
 const NOMES_UTM = ['utm_source','utm_medium','utm_campaign','utm_content','utm_term'];
-const rotuloUtm = x => NOMES_UTM.map(k => x[k]).filter(Boolean).join(' / ') || 'Sem UTM';
-const rotuloCidade = x => x.cidade ? x.cidade + (x.uf ? ' - ' + x.uf : '') : 'Não identificada';
+const CAMPOS_AC = {
+  utm_source:'utm_source', utm_medium:'utm_medium', utm_campaign:'utm_campaign', utm_content:'utm_content', utm_term:'utm_term', utm_id:'utm_id',
+  utm_source_platform:'utm_source_platform', utm_creative_format:'utm_creative_format', utm_marketing_tactic:'utm_marketing_tactic',
+  campaign_name:'Campanha', campaign_id:'ID da campanha', adset_name:'Conjunto', adset_id:'ID do conjunto', ad_name:'Anúncio', ad_id:'ID do anúncio',
+  placement:'Posicionamento', site_source_name:'Rede', clique:'Clique de anúncio/rede', origem:'Site de origem',
+  aparelho:'Aparelho', sistema:'Sistema', navegador:'Navegador', idioma:'Idioma', tela:'Tela', fuso:'Fuso horário',
+};
+const rotuloCidade = x => x.cidade ? [x.cidade, x.uf, x.pais].filter(Boolean).join(' - ') : 'Não identificada';
 
 function demoAcessos(){
-  const cidades = [{cidade:'Patos',uf:'PB'},{cidade:'João Pessoa',uf:'PB'},{cidade:'Campina Grande',uf:'PB'}];
-  const ultimos = Array.from({length:40}, (_,i) => ({criado_em:new Date(Date.now()-i*13*6e4).toISOString(), utm_source:i%2?'instagram':null, utm_campaign:i%2?'demo':null, ...cidades[i%3]}));
-  const contar = (lista, chave) => Object.values(lista.reduce((m,x) => { const k = chave(x); if (!m[k]) m[k] = {...x, n:0}; m[k].n++; return m; }, {})).sort((a,b) => b.n-a.n);
-  return {total:40, ultimos, utms:contar(ultimos, rotuloUtm), cidades:contar(ultimos, rotuloCidade),
-    horas:contar(ultimos.map(x => ({hora:new Date(x.criado_em).getHours()})), x => x.hora)};
+  const cidades = [{cidade:'Patos',uf:'PB',pais:'BR'},{cidade:'João Pessoa',uf:'PB',pais:'BR'},{cidade:'Clonee',uf:'L',pais:'IE',robo:true}];
+  const todos = Array.from({length:40}, (_,i) => ({criado_em:new Date(Date.now()-i*13*6e4).toISOString(), ...(i%2 ? {utm_source:'instagram', utm_medium:'stories', utm_campaign:'demo', clique:'Meta'} : {}),
+    aparelho:'Celular', sistema:i%3?'Android':'iOS', navegador:'App Instagram', idioma:'pt-BR', ...cidades[i%3]}));
+  const lista = todos.filter(x => tipoAc === 'todos' || !!x.robo === (tipoAc === 'robos'));
+  const contar = (l, chave) => Object.values(l.reduce((m,x) => { const k = chave(x); if (!m[k]) m[k] = {...x, n:0}; m[k].n++; return m; }, {})).sort((a,b) => b.n-a.n);
+  const grupos = {};
+  Object.keys(CAMPOS_AC).forEach(c => { const l = lista.filter(x => x[c]); if (l.length) grupos[c] = contar(l, x => x[c]).map(x => ({valor:x[c], n:x.n})); });
+  const robos = todos.filter(x => x.robo).length;
+  return {total:40, robos, pessoas:40-robos, exibidos:lista.length, ultimos:lista, grupos, utms:contar(lista, x => NOMES_UTM.map(k => x[k]).join()), cidades:contar(lista, rotuloCidade),
+    horas:contar(lista.map(x => ({hora:new Date(x.criado_em).getHours()})), x => x.hora)};
 }
 
 function renderAcessos(d){
   const porHora = Array(24).fill(0);
   d.horas.forEach(h => { porHora[h.hora] = h.n; });
   const max = Math.max(1, ...porHora);
+  const kpi = (t, v, c) => `<div class="kpi ${c||''}"><div class="l">${t}</div><div class="v">${inteiro(v)}</div></div>`;
   const tabela = (cab, linhas) => `<div class="tabela"><table><thead><tr>${cab.map(c => `<th class="${c==='Acessos'?'':'esq'}">${c}</th>`).join('')}</tr></thead><tbody>${linhas.join('')}</tbody></table></div>`;
-  const ranking = (titulo, lista, rotulo) => tabela([titulo, 'Acessos'], lista.map(x => `<tr><td class="esq nome">${esc(rotulo(x))}</td><td class="forte">${inteiro(x.n)}</td></tr>`));
-  $('acCorpo').innerHTML = `<div class="kpi main"><div class="l">Acessos</div><div class="v">${inteiro(d.total)}</div></div>` + (!d.total
+  const cel = v => `<td class="esq">${esc(v || '–')}</td>`;
+  const ranking = (titulo, lista, rotulo) => tabela([titulo, 'Acessos'], lista.map(x => `<tr><td class="esq">${esc(rotulo(x))}</td><td class="forte">${inteiro(x.n)}</td></tr>`));
+  const usados = Object.keys(CAMPOS_AC).filter(c => NOMES_UTM.includes(c) || d.grupos[c]);
+  $('acCorpo').innerHTML = `<div class="top">${kpi('Prováveis pessoas', d.pessoas, 'main')}${kpi('Prováveis robôs', d.robos)}${kpi('Total', d.total)}</div>` + (!d.exibidos
     ? '<div class="empty">Nenhum acesso neste período.</div>'
     : `<h3 class="secao">Por hora</h3><div class="horas">${porHora.map((n,h) => `<div title="${h}h: ${n}">${n || ''}<i style="height:${(n/max*60).toFixed(1)}px"></i>${h}</div>`).join('')}</div>
-      <h3 class="secao">Por UTM</h3>${ranking('UTM', d.utms, rotuloUtm)}
+      <h3 class="secao">Combinações de UTM</h3>${tabela([...NOMES_UTM, 'Acessos'], d.utms.map(x => `<tr>${NOMES_UTM.map(k => cel(x[k])).join('')}<td class="forte">${inteiro(x.n)}</td></tr>`))}
       <h3 class="secao">Por cidade (aproximada)</h3>${ranking('Cidade', d.cidades, rotuloCidade)}
-      <h3 class="secao">Últimos 50 acessos</h3>${tabela(['Horário','UTM','Cidade'], d.ultimos.map(x => `<tr><td class="esq">${dataHora(new Date(x.criado_em))}</td><td class="esq nome">${esc(rotuloUtm(x))}</td><td class="esq">${esc(rotuloCidade(x))}</td></tr>`))}`);
+      <div class="ac-grupos">${Object.keys(CAMPOS_AC).filter(c => d.grupos[c]).map(c => `<div><h3 class="secao">${CAMPOS_AC[c]}</h3>${ranking('Valor', d.grupos[c], x => x.valor)}</div>`).join('')}</div>
+      <h3 class="secao">Últimos 100 acessos</h3>${tabela(['Horário','Tipo','Cidade', ...usados.map(c => CAMPOS_AC[c])], d.ultimos.map(x => `<tr>${cel(dataHora(new Date(x.criado_em)))}${cel(x.robo ? 'Provável robô' : 'Provável pessoa')}${cel(rotuloCidade(x))}${usados.map(c => cel(x[c])).join('')}</tr>`))}`);
 }
 
 async function carregarAcessos(){
   const pedido = ++pedidoAc;   // só vale a resposta do último período escolhido
   $('acFiltros').innerHTML = PERIODOS_AC.map(p => `<button data-p="${p.k}" class="${p.k===periodoAc?'on':''}" aria-pressed="${p.k===periodoAc}">${p.t}</button>`).join('');
+  $('acTipos').innerHTML = TIPOS_AC.map(p => `<button data-t="${p.k}" class="${p.k===tipoAc?'on':''}" aria-pressed="${p.k===tipoAc}">${p.t}</button>`).join('');
   $('acCorpo').innerHTML = '<div class="empty">Carregando…</div>';
   try {
     let d;
     if (DEMO) d = demoAcessos();
     else {
       const de = PERIODOS_AC.find(p => p.k === periodoAc).de();
-      const q = new URLSearchParams({link:'patos'});
+      const q = new URLSearchParams({link:'patos', tipo:tipoAc});
       if (de) { q.set('de', de); q.set('ate', diasAtras(0)); }
       const r = await fetch('/api/acessos?' + q, {cache:'no-store'});
       d = await r.json();
@@ -673,6 +695,7 @@ async function carregarAcessos(){
 $('abrirAcessos').onclick = () => { $('acessos').showModal(); carregarAcessos(); };
 $('fecharAcessos').onclick = () => $('acessos').close();
 $('acAtualizar').onclick = carregarAcessos;
+$('acTipos').onclick = e => { const b = e.target.closest('button'); if (b) { tipoAc = b.dataset.t; carregarAcessos(); } };
 $('acFiltros').onclick = e => { const b = e.target.closest('button'); if (b) { periodoAc = b.dataset.p; carregarAcessos(); } };
 
 // ---- calendário de dias encerrados e virada à meia-noite ----

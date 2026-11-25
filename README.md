@@ -6,7 +6,7 @@
 - `api/estrategia.js`: rota da aba Estratégia (orçamento, alcance, frequência e anúncios). Só roda com a aba aberta e os dados ficam até 5 min em cache. Com `?data=AAAA-MM-DD`, traz o dia encerrado, com o orçamento pela configuração atual.
 - Chegadas recentes: 15 leads por tela, com o anúncio em tooltip. Ficam guardadas no navegador até a migração para o Supabase.
 - `patos/index.html`: redirecionador rastreado (`/patos/`); o destino fica em `DESTINO`.
-- `api/acessos.js`: registra e resume os acessos (quantidade, UTM, hora e cidade). Os acessos ficam numa planilha Google, pelo script `planilha/acessos.gs`; a URL dele fica na variável `PLANILHA_URL` do Vercel.
+- `api/acessos.js`: registra e resume os acessos (UTM, hora, cidade, origem e aparelho, separando prováveis robôs). Os acessos ficam numa planilha Google, pelo script `planilha/acessos.gs`; a URL dele fica na variável `PLANILHA_URL` do Vercel.
 - `lib/contas.js`: lista de unidades e contas.
 
 ## Publicar no Vercel

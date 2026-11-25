@@ -1,10 +1,11 @@
 // Cole em Extensões > Apps Script da planilha e implante como app da Web.
-// Colunas: data (UTC), link, utm_source, utm_medium, utm_campaign, utm_content, utm_term, cidade, uf
-const CAMPOS = ['link', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'cidade', 'uf'];
+// A primeira linha da planilha define as colunas. Campos novos viram colunas sozinhos.
+const INICIAIS = ['data', 'link', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'cidade', 'uf'];
+const MAX_COLUNAS = 60;
 
 function aba() {
   const s = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
-  if (s.getLastRow() === 0) s.appendRow(['data'].concat(CAMPOS));
+  if (s.getLastRow() === 0) s.appendRow(INICIAIS);
   return s;
 }
 
@@ -14,18 +15,29 @@ function responder(o) {
 
 function doPost(e) {
   const d = JSON.parse(e.postData.contents);
-  // O apóstrofo mantém tudo como texto, sem virar fórmula.
-  const linha = [new Date().toISOString()].concat(CAMPOS.map(c => String(d[c] || '').slice(0, 200)));
   const trava = LockService.getScriptLock();
   trava.waitLock(15000);
-  try { aba().appendRow(linha.map(v => v ? "'" + v : '')); SpreadsheetApp.flush(); }
-  finally { trava.releaseLock(); }
+  try {
+    const s = aba();
+    const colunas = s.getRange(1, 1, 1, s.getLastColumn()).getValues()[0].map(String);
+    Object.keys(d).forEach(c => {
+      if (colunas.indexOf(c) < 0 && /^[a-z_]{1,30}$/.test(c) && colunas.length < MAX_COLUNAS) {
+        colunas.push(c);
+        s.getRange(1, colunas.length).setValue(c);
+      }
+    });
+    d.data = new Date().toISOString();
+    // O apóstrofo mantém tudo como texto, sem virar fórmula.
+    s.appendRow(colunas.map(c => d[c] ? "'" + String(d[c]).slice(0, 200) : ''));
+    SpreadsheetApp.flush();
+  } finally { trava.releaseLock(); }
   return responder({ ok: true });
 }
 
 function doGet(e) {
   const p = e.parameter;
-  const linhas = aba().getDataRange().getValues().slice(1)
+  const tudo = aba().getDataRange().getValues();
+  const linhas = tudo.slice(1)
     .filter(l => l[1] === p.link && (!p.de || l[0] >= p.de) && (!p.ate || l[0] < p.ate));
-  return responder({ linhas: linhas });
+  return responder({ colunas: tudo[0], linhas: linhas });
 }
