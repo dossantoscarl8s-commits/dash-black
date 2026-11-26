@@ -1,16 +1,14 @@
 // Rota serverless (Vercel): /api/acessos
-// POST registra um acesso ao link rastreado. GET devolve os totais para o modal do painel.
+// POST registra uma pessoa redirecionada por um link rastreado. GET devolve os totais para o modal.
 // Os acessos ficam numa planilha Google, pelo Apps Script de planilha/acessos.gs.
 
 const PLANILHA_URL = process.env.PLANILHA_URL || '';   // URL /exec do app da Web, só no Vercel
 
-const LINKS = ['patos'];
+const LINKS = ['patos', 'natal'];
 const UTMS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
-const CAMPOS = [...UTMS, 'utm_id', 'utm_source_platform', 'utm_creative_format', 'utm_marketing_tactic',
-  'campaign_id', 'campaign_name', 'adset_id', 'adset_name', 'ad_id', 'ad_name', 'placement', 'site_source_name',
-  'clique', 'origem', 'idioma', 'tela', 'fuso'];
+const ANUNCIO = ['campaign_name', 'adset_name', 'ad_name', 'campaign_id', 'adset_id', 'ad_id'];
+const CAMPOS = [...UTMS, 'utm_id', ...ANUNCIO];
 const COLUNAS = ['data', 'link', ...UTMS, 'cidade', 'uf'];   // planilha com o script antigo, sem cabeçalho na resposta
-const TIPOS = ['pessoas', 'robos', 'todos'];
 const UFS = 'AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO'.split(' ');
 const ROBOS = /bot\b|crawl|spider|facebookexternalhit|facebookcatalog|meta-external|facebot|whatsapp\/|preview|headless|lighthouse|curl|python|axios|node-fetch|okhttp|go-http|monitor/i;
 const MAX_TEXTO = 200;
@@ -21,25 +19,15 @@ const ehData = v => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)
 const inicioDoDia = (data, dias = 0) => new Date(Date.parse(`${data}T00:00:00-03:00`) + dias * DIA_MS).toISOString();
 const horaBrasil = iso => new Date(Date.parse(iso) - 3 * 3600 * 1000).getUTCHours();
 
-// O Vercel informa a cidade aproximada pelo IP, codificada na URL. O IP não é guardado.
+// O Vercel informa a localização aproximada pelo IP, codificada na URL. O IP não é guardado.
 function cabecalho(req, nome) {
   const v = req.headers[nome];
   if (!v) return null;
   try { return texto(decodeURIComponent(v)); } catch (_) { return texto(v); }
 }
 
-// Primeira regra que casar com o user-agent vence.
-const achar = (ua, regras) => (regras.find(([r]) => r.test(ua)) || [null, 'Outro'])[1];
-function lerAparelho(ua) {
-  return {
-    aparelho: achar(ua, [[/ipad|tablet/i, 'Tablet'], [/mobi|iphone|android/i, 'Celular'], [/windows|macintosh|linux|cros/i, 'Computador']]),
-    sistema: achar(ua, [[/iphone|ipad|ipod/i, 'iOS'], [/android/i, 'Android'], [/windows/i, 'Windows'], [/macintosh/i, 'macOS'], [/cros/i, 'ChromeOS'], [/linux/i, 'Linux']]),
-    navegador: achar(ua, [[/instagram/i, 'App Instagram'], [/fban|fbav|fb_iab/i, 'App Facebook'], [/tiktok|musical_ly|bytedance/i, 'App TikTok'], [/edg/i, 'Edge'], [/opr\//i, 'Opera'], [/samsungbrowser/i, 'Samsung'], [/firefox|fxios/i, 'Firefox'], [/chrome|crios/i, 'Chrome'], [/safari/i, 'Safari']]),
-  };
-}
-
-// O link é para o público de Patos: acesso de fora do Brasil conta como provável robô, porque os
-// verificadores da Meta se passam por navegador comum. Nas linhas antigas, sem país, vale a UF.
+// Os links são para público do Brasil, e os verificadores da Meta se passam por navegador comum
+// a partir de data centers no exterior. Linhas antigas sem país usam a UF; a coluna tipo marca robô.
 function ehRobo(a) {
   if (a.tipo === 'robô') return true;
   if (a.pais) return a.pais !== 'BR';
@@ -70,15 +58,17 @@ async function registrar(req, res) {
   catch (_) { res.status(400).json({ erro: 'Corpo inválido.' }); return; }
   if (!LINKS.includes(corpo?.link)) { res.status(400).json({ erro: 'Link inválido.' }); return; }
 
+  // Provável robô não é gravado.
+  const ua = req.headers['user-agent'] || '';
+  const pais = cabecalho(req, 'x-vercel-ip-country');
+  if (!ua || ROBOS.test(ua) || corpo.automatizado === true || (pais && pais !== 'BR')) { res.status(204).end(); return; }
+
   const acesso = {
     link: corpo.link,
     cidade: cabecalho(req, 'x-vercel-ip-city'),
     uf: cabecalho(req, 'x-vercel-ip-country-region'),
-    pais: cabecalho(req, 'x-vercel-ip-country'),
+    pais,
   };
-  const ua = req.headers['user-agent'] || '';
-  Object.assign(acesso, lerAparelho(ua));
-  acesso.tipo = !ua || ROBOS.test(ua) || corpo.automatizado === true ? 'robô' : null;
   for (const k of CAMPOS) acesso[k] = texto(corpo[k]);
   const r = await planilha('', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(acesso) });
   if (!r.ok) throw new Error('a planilha não confirmou a gravação');
@@ -86,39 +76,30 @@ async function registrar(req, res) {
 }
 
 async function resumir(req, res) {
-  const { link = 'patos', de, ate, tipo = 'todos' } = req.query || {};
+  const { link = 'patos', de, ate } = req.query || {};
   if (!LINKS.includes(link)) { res.status(400).json({ erro: 'Link inválido.' }); return; }
   if ((de && !ehData(de)) || (ate && !ehData(ate))) { res.status(400).json({ erro: 'Data inválida.' }); return; }
-  if (!TIPOS.includes(tipo)) { res.status(400).json({ erro: 'Tipo inválido.' }); return; }
   const q = new URLSearchParams({ link });
   if (de) q.set('de', inicioDoDia(de));
   if (ate) q.set('ate', inicioDoDia(ate, 1));
   const { linhas, colunas = COLUNAS } = await planilha('?' + q);
   if (!Array.isArray(linhas)) throw new Error('a planilha não devolveu os acessos');
 
-  const todos = linhas.map(l => {
-    const a = Object.fromEntries(['link', ...CAMPOS, 'cidade', 'uf', 'pais', 'aparelho', 'sistema', 'navegador', 'tipo'].map(c => [c, l[colunas.indexOf(c)] || null]));
-    a.criado_em = l[0];
-    a.robo = ehRobo(a);
-    return a;
-  });
-  const robos = todos.filter(a => a.robo).length;
-  const acessos = tipo === 'todos' ? todos : todos.filter(a => a.robo === (tipo === 'robos'));
-  const grupos = {};
-  for (const c of [...CAMPOS, 'aparelho', 'sistema', 'navegador']) {
-    const preenchidos = acessos.filter(a => a[c]);
-    if (preenchidos.length) grupos[c] = contar(preenchidos, [c]).map(x => ({ valor: x[c], n: x.n }));
-  }
+  const pessoas = linhas
+    .map(l => {
+      const a = Object.fromEntries([...CAMPOS, 'cidade', 'uf', 'pais', 'tipo'].map(c => [c, l[colunas.indexOf(c)] || null]));
+      a.criado_em = l[0];
+      return a;
+    })
+    .filter(a => !ehRobo(a))
+    .map(({ pais, tipo, ...a }) => a);
   res.status(200).json({
-    total: todos.length,
-    pessoas: todos.length - robos,
-    robos,
-    exibidos: acessos.length,
-    horas: contar(acessos.map(a => ({ hora: horaBrasil(a.criado_em) })), ['hora']),
-    utms: contar(acessos, UTMS),
-    cidades: contar(acessos, ['cidade', 'uf', 'pais']),
-    grupos,
-    ultimos: acessos.slice(-100).reverse(),
+    total: pessoas.length,
+    horas: contar(pessoas.map(a => ({ hora: horaBrasil(a.criado_em) })), ['hora']),
+    utms: contar(pessoas, UTMS),
+    anuncios: contar(pessoas.filter(a => ANUNCIO.some(c => a[c])), ANUNCIO),
+    cidades: contar(pessoas, ['cidade', 'uf']),
+    ultimos: pessoas.slice(-100).reverse(),
   });
 }
 

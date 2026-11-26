@@ -103,11 +103,10 @@
   .horas{display:flex;align-items:flex-end;gap:3px;height:90px}
   .horas div{flex:1;min-width:0;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;font-size:9px;color:var(--mut)}
   .horas i{width:100%;background:var(--acc2);border-radius:2px 2px 0 0}
-  dialog .tabela{max-height:220px}
-  dialog .top{grid-template-columns:repeat(3,1fr);margin-bottom:0;border:0;padding:0}
-  dialog .top .kpi.main{grid-column:auto}
-  .ac-grupos{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:0 10px}
-  @media (max-width:1000px){.top{grid-template-columns:repeat(2,1fr)}.kpi.main{grid-column:1/-1}.main-grid{grid-template-columns:1fr}.feed{max-height:none}}
+  dialog .tabela{max-height:220px;overflow-x:hidden}
+  dialog td{white-space:normal;overflow-wrap:anywhere}
+  @media (max-width:640px){dialog .tabela{overflow-x:auto}dialog td{white-space:nowrap}}
+    @media (max-width:1000px){.top{grid-template-columns:repeat(2,1fr)}.kpi.main{grid-column:1/-1}.main-grid{grid-template-columns:1fr}.feed{max-height:none}}
   @media (max-width:1000px){.wrap{width:auto;padding:12px 16px 20px}}
   @media (max-width:860px){.tabela.aberta{overflow-x:auto}}
   @media (max-width:640px){.grid{grid-template-columns:repeat(2,1fr)}header{align-items:flex-start}}
@@ -134,7 +133,7 @@
   <div class="banner" id="banner"></div>
 
   <main id="aba-painel">
-    <div class="painel-ac"><button id="abrirAcessos" aria-haspopup="dialog">Acessos do link /patos/</button></div>
+    <div class="painel-ac"><button id="abrirAcessos" aria-haspopup="dialog">Acessos dos links</button></div>
     <section class="top">
       <div class="kpi main"><div class="l" id="totalL">Leads hoje</div><div class="v" id="total">–</div><div class="s" id="totalS">&nbsp;</div></div>
       <div class="kpi"><div class="l">Investimento</div><div class="v" id="gasto">–</div><div class="s" id="unid">&nbsp;</div></div>
@@ -193,10 +192,10 @@
   <nav class="cal" id="calendario" aria-label="Dias encerrados"></nav>
 </div>
 <dialog id="acessos" aria-labelledby="acTitulo">
-  <div class="bar-acoes"><h2 id="acTitulo">Acessos · /patos/</h2><button id="fecharAcessos">Fechar</button></div>
+  <div class="bar-acoes"><h2 id="acTitulo">Pessoas redirecionadas</h2><button id="fecharAcessos">Fechar</button></div>
   <div class="bar-acoes">
+    <div class="filtros" id="acLinks"></div>
     <div class="filtros" id="acFiltros"></div>
-    <div class="filtros" id="acTipos"></div>
     <button id="acAtualizar">↻ Atualizar</button>
   </div>
   <div id="acCorpo" aria-live="polite"></div>
@@ -618,70 +617,61 @@ async function carregarEstrategia(){
   }
 }
 
-// ---- modal de acessos do link rastreado ----
+// ---- modal de pessoas redirecionadas pelos links rastreados ----
 const diasAtras = n => { const d = new Date((DIA || isoLocal(new Date())) + 'T12:00:00'); d.setDate(d.getDate() - n); return isoLocal(d); };
+const LINKS_AC = [{k:'patos', t:'/patos/'}, {k:'natal', t:'/natal/'}];
 const PERIODOS_AC = [
   {k:'dia', t:DIA ? dataCurta(DIA) : 'Hoje', de:() => diasAtras(0)},
   {k:'7', t:'7 dias', de:() => diasAtras(6)},
   {k:'30', t:'30 dias', de:() => diasAtras(29)},
   {k:'tudo', t:'Tudo', de:() => null},
 ];
-const TIPOS_AC = [{k:'pessoas', t:'Prováveis pessoas'}, {k:'robos', t:'Prováveis robôs'}, {k:'todos', t:'Todos'}];
+let linkAc = 'patos';
 let periodoAc = 'dia';
-let tipoAc = 'pessoas';
 let pedidoAc = 0;
 const NOMES_UTM = ['utm_source','utm_medium','utm_campaign','utm_content','utm_term'];
-const CAMPOS_AC = {
-  utm_source:'utm_source', utm_medium:'utm_medium', utm_campaign:'utm_campaign', utm_content:'utm_content', utm_term:'utm_term', utm_id:'utm_id',
-  utm_source_platform:'utm_source_platform', utm_creative_format:'utm_creative_format', utm_marketing_tactic:'utm_marketing_tactic',
-  campaign_name:'Campanha', campaign_id:'ID da campanha', adset_name:'Conjunto', adset_id:'ID do conjunto', ad_name:'Anúncio', ad_id:'ID do anúncio',
-  placement:'Posicionamento', site_source_name:'Rede', clique:'Clique de anúncio/rede', origem:'Site de origem',
-  aparelho:'Aparelho', sistema:'Sistema', navegador:'Navegador', idioma:'Idioma', tela:'Tela', fuso:'Fuso horário',
-};
-const rotuloCidade = x => x.cidade ? [x.cidade, x.uf, x.pais].filter(Boolean).join(' - ') : 'Não identificada';
+// Anúncio pelo nome; sem nome, pelo ID.
+const NIVEIS_AC = [['Campanha','campaign_name','campaign_id'], ['Conjunto','adset_name','adset_id'], ['Anúncio','ad_name','ad_id']];
+const rotuloCidade = x => x.cidade ? x.cidade + (x.uf ? ' - ' + x.uf : '') : 'Não identificada';
+const botoes = (lista, atual, attr) => lista.map(p => `<button data-${attr}="${p.k}" class="${p.k===atual?'on':''}" aria-pressed="${p.k===atual}">${p.t}</button>`).join('');
 
 function demoAcessos(){
-  const cidades = [{cidade:'Patos',uf:'PB',pais:'BR'},{cidade:'João Pessoa',uf:'PB',pais:'BR'},{cidade:'Clonee',uf:'L',pais:'IE',robo:true}];
-  const todos = Array.from({length:40}, (_,i) => ({criado_em:new Date(Date.now()-i*13*6e4).toISOString(), ...(i%2 ? {utm_source:'instagram', utm_medium:'stories', utm_campaign:'demo', clique:'Meta'} : {}),
-    aparelho:'Celular', sistema:i%3?'Android':'iOS', navegador:'App Instagram', idioma:'pt-BR', ...cidades[i%3]}));
-  const lista = todos.filter(x => tipoAc === 'todos' || !!x.robo === (tipoAc === 'robos'));
-  const contar = (l, chave) => Object.values(l.reduce((m,x) => { const k = chave(x); if (!m[k]) m[k] = {...x, n:0}; m[k].n++; return m; }, {})).sort((a,b) => b.n-a.n);
-  const grupos = {};
-  Object.keys(CAMPOS_AC).forEach(c => { const l = lista.filter(x => x[c]); if (l.length) grupos[c] = contar(l, x => x[c]).map(x => ({valor:x[c], n:x.n})); });
-  const robos = todos.filter(x => x.robo).length;
-  return {total:40, robos, pessoas:40-robos, exibidos:lista.length, ultimos:lista, grupos, utms:contar(lista, x => NOMES_UTM.map(k => x[k]).join()), cidades:contar(lista, rotuloCidade),
-    horas:contar(lista.map(x => ({hora:new Date(x.criado_em).getHours()})), x => x.hora)};
+  const cidades = [{cidade:'Natal',uf:'RN'},{cidade:'Patos',uf:'PB'},{cidade:'Parnamirim',uf:'RN'}];
+  const lista = Array.from({length:30}, (_,i) => ({criado_em:new Date(Date.now()-i*17*6e4).toISOString(),
+    ...(i%2 ? {utm_source:'instagram', utm_medium:'stories', utm_campaign:'black_week', utm_content:'video_'+(i%3), campaign_name:'Black Week', adset_name:'Mulheres 25-45', ad_name:'Vídeo '+(i%3)} : {}), ...cidades[i%3]}));
+  const contar = (l, campos) => Object.values(l.reduce((m,x) => { const k = campos.map(c => x[c]).join('|'); if (!m[k]) m[k] = {...x, n:0}; m[k].n++; return m; }, {})).sort((a,b) => b.n-a.n);
+  return {total:lista.length, ultimos:lista, utms:contar(lista, NOMES_UTM), anuncios:contar(lista.filter(x => x.ad_name), ['ad_name']), cidades:contar(lista, ['cidade']),
+    horas:contar(lista.map(x => ({hora:new Date(x.criado_em).getHours()})), ['hora'])};
 }
 
 function renderAcessos(d){
   const porHora = Array(24).fill(0);
   d.horas.forEach(h => { porHora[h.hora] = h.n; });
   const max = Math.max(1, ...porHora);
-  const kpi = (t, v, c) => `<div class="kpi ${c||''}"><div class="l">${t}</div><div class="v">${inteiro(v)}</div></div>`;
-  const tabela = (cab, linhas) => `<div class="tabela"><table><thead><tr>${cab.map(c => `<th class="${c==='Acessos'?'':'esq'}">${c}</th>`).join('')}</tr></thead><tbody>${linhas.join('')}</tbody></table></div>`;
   const cel = v => `<td class="esq">${esc(v || '–')}</td>`;
-  const ranking = (titulo, lista, rotulo) => tabela([titulo, 'Acessos'], lista.map(x => `<tr><td class="esq">${esc(rotulo(x))}</td><td class="forte">${inteiro(x.n)}</td></tr>`));
-  const usados = Object.keys(CAMPOS_AC).filter(c => NOMES_UTM.includes(c) || d.grupos[c]);
-  $('acCorpo').innerHTML = `<div class="top">${kpi('Prováveis pessoas', d.pessoas, 'main')}${kpi('Prováveis robôs', d.robos)}${kpi('Total', d.total)}</div>` + (!d.exibidos
-    ? '<div class="empty">Nenhum acesso neste período.</div>'
+  const num = n => `<td class="forte">${inteiro(n)}</td>`;
+  const tabela = (cab, linhas) => `<div class="tabela"><table><thead><tr>${cab.map(c => `<th class="${c==='Pessoas'?'':'esq'}">${c}</th>`).join('')}</tr></thead><tbody>${linhas.join('')}</tbody></table></div>`;
+  const anuncio = x => NIVEIS_AC.map(([, nome, id]) => cel(x[nome] || x[id]));
+  $('acCorpo').innerHTML = `<div class="kpi main"><div class="l">Pessoas redirecionadas</div><div class="v">${inteiro(d.total)}</div></div>` + (!d.total
+    ? '<div class="empty">Ninguém redirecionado neste período.</div>'
     : `<h3 class="secao">Por hora</h3><div class="horas">${porHora.map((n,h) => `<div title="${h}h: ${n}">${n || ''}<i style="height:${(n/max*60).toFixed(1)}px"></i>${h}</div>`).join('')}</div>
-      <h3 class="secao">Combinações de UTM</h3>${tabela([...NOMES_UTM, 'Acessos'], d.utms.map(x => `<tr>${NOMES_UTM.map(k => cel(x[k])).join('')}<td class="forte">${inteiro(x.n)}</td></tr>`))}
-      <h3 class="secao">Por cidade (aproximada)</h3>${ranking('Cidade', d.cidades, rotuloCidade)}
-      <div class="ac-grupos">${Object.keys(CAMPOS_AC).filter(c => d.grupos[c]).map(c => `<div><h3 class="secao">${CAMPOS_AC[c]}</h3>${ranking('Valor', d.grupos[c], x => x.valor)}</div>`).join('')}</div>
-      <h3 class="secao">Últimos 100 acessos</h3>${tabela(['Horário','Tipo','Cidade', ...usados.map(c => CAMPOS_AC[c])], d.ultimos.map(x => `<tr>${cel(dataHora(new Date(x.criado_em)))}${cel(x.robo ? 'Provável robô' : 'Provável pessoa')}${cel(rotuloCidade(x))}${usados.map(c => cel(x[c])).join('')}</tr>`))}`);
+      <h3 class="secao">Por UTM</h3>${tabela([...NOMES_UTM, 'Pessoas'], d.utms.map(x => `<tr>${NOMES_UTM.map(k => cel(x[k])).join('')}${num(x.n)}</tr>`))}
+      ${d.anuncios.length ? `<h3 class="secao">Por anúncio</h3>${tabela([...NIVEIS_AC.map(n => n[0]), 'Pessoas'], d.anuncios.map(x => `<tr>${anuncio(x).join('')}${num(x.n)}</tr>`))}` : ''}
+      <h3 class="secao">Por cidade (aproximada)</h3>${tabela(['Cidade', 'Pessoas'], d.cidades.map(x => `<tr>${cel(rotuloCidade(x))}${num(x.n)}</tr>`))}
+      <h3 class="secao">Últimas 100</h3>${tabela(['Horário', 'Cidade', ...NOMES_UTM], d.ultimos.map(x => `<tr>${cel(dataHora(new Date(x.criado_em)))}${cel(rotuloCidade(x))}${NOMES_UTM.map(k => cel(x[k])).join('')}</tr>`))}`);
 }
 
 async function carregarAcessos(){
-  const pedido = ++pedidoAc;   // só vale a resposta do último período escolhido
-  $('acFiltros').innerHTML = PERIODOS_AC.map(p => `<button data-p="${p.k}" class="${p.k===periodoAc?'on':''}" aria-pressed="${p.k===periodoAc}">${p.t}</button>`).join('');
-  $('acTipos').innerHTML = TIPOS_AC.map(p => `<button data-t="${p.k}" class="${p.k===tipoAc?'on':''}" aria-pressed="${p.k===tipoAc}">${p.t}</button>`).join('');
+  const pedido = ++pedidoAc;   // só vale a resposta do último filtro escolhido
+  $('acLinks').innerHTML = botoes(LINKS_AC, linkAc, 'l');
+  $('acFiltros').innerHTML = botoes(PERIODOS_AC, periodoAc, 'p');
   $('acCorpo').innerHTML = '<div class="empty">Carregando…</div>';
   try {
     let d;
     if (DEMO) d = demoAcessos();
     else {
       const de = PERIODOS_AC.find(p => p.k === periodoAc).de();
-      const q = new URLSearchParams({link:'patos', tipo:tipoAc});
+      const q = new URLSearchParams({link:linkAc});
       if (de) { q.set('de', de); q.set('ate', diasAtras(0)); }
       const r = await fetch('/api/acessos?' + q, {cache:'no-store'});
       d = await r.json();
@@ -695,7 +685,7 @@ async function carregarAcessos(){
 $('abrirAcessos').onclick = () => { $('acessos').showModal(); carregarAcessos(); };
 $('fecharAcessos').onclick = () => $('acessos').close();
 $('acAtualizar').onclick = carregarAcessos;
-$('acTipos').onclick = e => { const b = e.target.closest('button'); if (b) { tipoAc = b.dataset.t; carregarAcessos(); } };
+$('acLinks').onclick = e => { const b = e.target.closest('button'); if (b) { linkAc = b.dataset.l; carregarAcessos(); } };
 $('acFiltros').onclick = e => { const b = e.target.closest('button'); if (b) { periodoAc = b.dataset.p; carregarAcessos(); } };
 
 // ---- calendário de dias encerrados e virada à meia-noite ----

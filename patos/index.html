@@ -6,36 +6,11 @@
   <meta name="robots" content="noindex">
   <title>Redirecionando…</title>
   <script>
+    var LINK = 'patos';
     // URL completa de destino (com https://). Com # a página não redireciona.
     var DESTINO = 'https://wa.me/5583981210770?text=Ol%C3%A1!%20Gostaria%20de%20aproveitar%20as%20ofertas%20da%20Black%20Week%20da%20BotoEsthetic%20Patos!';
-
-    // Registra o acesso. O keepalive conclui o envio mesmo com a página já redirecionando.
-    try {
-      var params = new URLSearchParams(location.search);
-      var acesso = { link: 'patos' };
-      ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'utm_id',
-        'utm_source_platform', 'utm_creative_format', 'utm_marketing_tactic',
-        'campaign_id', 'campaign_name', 'adset_id', 'adset_name', 'ad_id', 'ad_name',
-        'placement', 'site_source_name'].forEach(function (k) {
-        if (params.get(k)) acesso[k] = params.get(k).slice(0, 200);
-      });
-      var cliques = { fbclid: 'Meta', gclid: 'Google', gbraid: 'Google', wbraid: 'Google', ttclid: 'TikTok', msclkid: 'Microsoft' };
-      for (var c in cliques) if (params.has(c)) acesso.clique = cliques[c];
-      // Da página anterior, só o site.
-      if (document.referrer) acesso.origem = new URL(document.referrer).hostname;
-      acesso.idioma = navigator.language;
-      acesso.tela = screen.width + 'x' + screen.height;
-      acesso.fuso = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      if (navigator.webdriver) acesso.automatizado = true;
-      fetch('/api/acessos', {
-        method: 'POST', keepalive: true,
-        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(acesso)
-      }).catch(function () {});
-    } catch (_) {}
-
-    // Os parâmetros do link não seguem adiante: o WhatsApp não os usa e alterariam a mensagem.
-    if (DESTINO !== '#') location.replace(DESTINO);
   </script>
+  <script src="/rastreio.js"></script>
 </head>
 <body>
   <p>Redirecionando…</p>

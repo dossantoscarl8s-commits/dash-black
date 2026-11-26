@@ -5,8 +5,8 @@
 - Calendário no rodapé: à meia-noite o painel zera e o dia anterior fica disponível em `?dia=AAAA-MM-DD`, congelado.
 - `api/estrategia.js`: rota da aba Estratégia (orçamento, alcance, frequência e anúncios). Só roda com a aba aberta e os dados ficam até 5 min em cache. Com `?data=AAAA-MM-DD`, traz o dia encerrado, com o orçamento pela configuração atual.
 - Chegadas recentes: 15 leads por tela, com o anúncio em tooltip. Ficam guardadas no navegador até a migração para o Supabase.
-- `patos/index.html`: redirecionador rastreado (`/patos/`); o destino fica em `DESTINO`.
-- `api/acessos.js`: registra e resume os acessos (UTM, hora, cidade, origem e aparelho, separando prováveis robôs). Os acessos ficam numa planilha Google, pelo script `planilha/acessos.gs`; a URL dele fica na variável `PLANILHA_URL` do Vercel.
+- `patos/` e `natal/`: links rastreados que redirecionam ao WhatsApp de cada unidade; o destino fica em `DESTINO` e o envio do acesso em `rastreio.js`.
+- `api/acessos.js`: registra e resume as pessoas redirecionadas (hora, UTM, anúncio e cidade). Prováveis robôs não são gravados. Os dados ficam numa planilha Google, pelo script `planilha/acessos.gs`; a URL dele fica na variável `PLANILHA_URL` do Vercel.
 - `lib/contas.js`: lista de unidades e contas.
 
 ## Publicar no Vercel
